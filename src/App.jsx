@@ -270,11 +270,6 @@ const DEFAULT_STORE_SETTINGS = {
   instagramHandle: '@saturn.thrifttt',
 }
 
-const THEMES = [
-  { id: 'cream', name: 'Cream Archive', icon: 'wb_sunny' },
-  { id: 'cosmic', name: 'Cosmic Dark', icon: 'dark_mode' },
-  { id: 'tokyo', name: 'Tokyo Mono', icon: 'contrast' },
-]
 
 export default function App() {
   // Website Theme State (Persisted in localStorage: cream | cosmic | tokyo)
@@ -918,22 +913,6 @@ export default function App() {
     }
   }, [drawFrame])
 
-  // Scrubber track click
-  const handleScrubberClick = (e) => {
-    const heroTrack = heroTrackRef.current
-    if (!heroTrack) return
-
-    const rect = e.currentTarget.getBoundingClientRect()
-    const clickX = Math.max(0, Math.min(rect.width, e.clientX - rect.left))
-    const ratio = clickX / rect.width
-
-    const scrollableDistance = heroTrack.offsetHeight - window.innerHeight
-
-    window.scrollTo({
-      top: ratio * scrollableDistance,
-      behavior: 'smooth',
-    })
-  }
 
   // Quick claim relic
   const handleClaimRelic = (relic) => {
@@ -954,7 +933,6 @@ export default function App() {
   const filteredRelics = activeCategory === 'all'
     ? relics
     : relics.filter((relic) => relic.category === activeCategory)
-  const percentComplete = Math.round(heroScrollFraction * 100)
 
   // Cinematic scroll interpolation: Screen 1 exits, Screen 2 enters & holds, Screen 3 (New Arrivals at Frame 325)
   const screen1Exit = Math.min(1, Math.max(0, heroScrollFraction / 0.18))
@@ -1474,79 +1452,6 @@ export default function App() {
               <span>SCROLL TO ENTER ORBIT</span>
             </div>
 
-            {/* Frame Scrubbing Pill */}
-            <div className="timeline-scrubber-pill">
-              <div className="scrubber-counter">
-                FRAME {String(activeFrameDisplay).padStart(3, '0')} <span>/ {TOTAL_FRAMES}</span>
-                {activeFrameDisplay >= 325 && activeFrameDisplay < 366 && (
-                  <span
-                    style={{
-                      marginLeft: 8,
-                      padding: '2px 7px',
-                      background: 'rgba(29, 27, 24, 0.85)',
-                      color: 'var(--primary-container)',
-                      border: '1px solid var(--primary)',
-                      fontSize: 9,
-                      fontWeight: 800,
-                      letterSpacing: '0.08em',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: 4,
-                    }}
-                  >
-                    📦 WATCH BOXES DROP...
-                  </span>
-                )}
-                {activeFrameDisplay >= 366 && activeFrameDisplay <= 425 && (
-                  <span
-                    style={{
-                      marginLeft: 8,
-                      padding: '2px 7px',
-                      background: 'var(--primary)',
-                      color: 'var(--on-primary)',
-                      fontSize: 9,
-                      fontWeight: 800,
-                      letterSpacing: '0.08em',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: 4,
-                    }}
-                  >
-                    ✦ BOXES UNLOADED // 3 NEW ARRIVALS
-                  </span>
-                )}
-              </div>
-              <div
-                className="scrubber-track"
-                onClick={handleScrubberClick}
-                title="Click to scrub sequence"
-              >
-                <div
-                  className="scrubber-fill"
-                  style={{ width: `${heroScrollFraction * 100}%` }}
-                />
-              </div>
-              <div className="scrubber-percent">{percentComplete}%</div>
-            </div>
-
-            {/* Real-time Theme Switcher HUD Chips */}
-            <div className="hud-theme-switcher" title="Select Website Theme Palette">
-              <span className="hud-theme-label">THEME</span>
-              {THEMES.map((th) => (
-                <button
-                  key={th.id}
-                  type="button"
-                  className={`hud-theme-chip ${activeTheme === th.id ? 'active' : ''}`}
-                  onClick={() => setActiveTheme(th.id)}
-                  title={`Switch to ${th.name}`}
-                >
-                  <span className="material-symbols-outlined" style={{ fontSize: 13 }}>
-                    {th.icon}
-                  </span>
-                  <span>{th.id.toUpperCase()}</span>
-                </button>
-              ))}
-            </div>
           </div>
         </div>
       </section>
