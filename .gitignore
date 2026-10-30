@@ -1,0 +1,48 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Dependencies and Build Output
+node_modules
+dist
+dist-ssr
+*.local
+
+# Environment Variables
+.env
+.env.*
+!.env.example
+
+# Editor & OS directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+Thumbs.db
+ehthumbs.db
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Temporary Artifacts, Dumps & Archives
+*.tmp
+*.temp
+24e51c61-*
+*.zip
+*.tar.gz
+
+# Video files & Screen recordings
+*.mp4
+*.mov
+*.avi
+*.webm
+
+# Local Reference & Design scratchpad
+reference_design/

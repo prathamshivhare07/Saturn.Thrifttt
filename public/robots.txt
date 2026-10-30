@@ -1,0 +1,29 @@
+# ==============================================================================
+# SATURN.THRIFTTT — ROBOTS.TXT
+# Optimized for Search Engines (Google, Bing) & AI Search Agents (ChatGPT, Claude, Perplexity)
+# ==============================================================================
+
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /checkout/
+Disallow: /admin/
+
+# AI Search & Retrieval Crawlers (Generative Engine Optimization - GEO)
+User-agent: GPTBot
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
+User-agent: CCBot
+Allow: /
+
+# Canonical XML Sitemap & LLMs Knowledge Manifest
+Sitemap: https://saturnthrifttt.com/sitemap.xml
