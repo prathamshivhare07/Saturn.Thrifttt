@@ -342,7 +342,7 @@ export function HangerShowroom({
   mousePosRef,
   heroScrollFraction = 0,
 }) {
-  const { scene } = useGLTF('/models/hoodie.glb');
+  const { scene } = useGLTF(HOODIE_MODEL_URL);
   const rackMasterRef = useRef();
   const entranceProgressRef = useRef(0);
 
@@ -469,8 +469,33 @@ function HangerLoadingFallback({ categories = [] }) {
   );
 }
 
+class CanvasErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false };
+  }
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+  componentDidCatch(err) {
+    console.warn('3D Clothing Rack render warning:', err);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="rack-canvas-wrapper" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ textAlign: 'center', color: '#7d7569', fontFamily: 'Space Mono, monospace', fontSize: '11px', letterSpacing: '0.15em' }}>
+            ✦ ARCHIVAL SHOWROOM DISPLAY ✦
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 // Master Export Component: HeroClothingRack
-export function HeroClothingRack({
+function HeroClothingRackInner({
   categories = [],
   activeCategory = 'all',
   onSelectCategory = () => { },
@@ -556,6 +581,14 @@ export function HeroClothingRack({
         </Suspense>
       </Canvas>
     </div>
+  );
+}
+
+export function HeroClothingRack(props) {
+  return (
+    <CanvasErrorBoundary>
+      <HeroClothingRackInner {...props} />
+    </CanvasErrorBoundary>
   );
 }
 
