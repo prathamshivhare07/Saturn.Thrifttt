@@ -2,6 +2,18 @@ import { useEffect, useRef, useState, useCallback, lazy, Suspense } from 'react'
 import HeroClothingRack from './components/ClothingRack'
 import AuthModal from './components/AuthModal'
 import CheckoutModal from './components/CheckoutModal'
+import {
+  isSupabaseConfigured,
+  fetchRemoteRelics,
+  syncAllRelicsToRemote,
+  subscribeToRelics,
+  fetchRemoteOrders,
+  insertRemoteOrder,
+  subscribeToOrders,
+  fetchRemoteConfig,
+  saveRemoteConfig,
+  subscribeToStoreConfig,
+} from './lib/supabase'
 import './App.css'
 
 const AdminDashboardModal = lazy(() => import('./components/AdminDashboardModal'))
@@ -317,6 +329,7 @@ export default function App() {
   const handleUpdateRelics = (newRelics) => {
     setRelics(newRelics)
     localStorage.setItem('saturn_vault_relics', JSON.stringify(newRelics))
+    syncAllRelicsToRemote(newRelics)
   }
 
   const [announcementBanner, setAnnouncementBanner] = useState(() => {
@@ -331,6 +344,7 @@ export default function App() {
   const handleUpdateBanner = (banner) => {
     setAnnouncementBanner(banner)
     localStorage.setItem('saturn_announcement_banner', JSON.stringify(banner))
+    saveRemoteConfig('announcement_banner', banner)
   }
 
   const [activeOffers, setActiveOffers] = useState(() => {
@@ -345,6 +359,7 @@ export default function App() {
   const handleUpdateOffers = (offers) => {
     setActiveOffers(offers)
     localStorage.setItem('saturn_store_offers', JSON.stringify(offers))
+    saveRemoteConfig('store_offers', offers)
   }
 
   const [storeSettings, setStoreSettings] = useState(() => {
@@ -359,6 +374,7 @@ export default function App() {
   const handleUpdateSettings = (settings) => {
     setStoreSettings(settings)
     localStorage.setItem('saturn_store_settings', JSON.stringify(settings))
+    saveRemoteConfig('store_settings', settings)
   }
 
   const [allOrders, setAllOrders] = useState(() => {
@@ -469,6 +485,149 @@ export default function App() {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [])
 
+  // Realtime Cloud Sync & Instant Telemetry (Supabase)
+  useEffect(() => {
+    if (!isSupabaseConfigured) return
+
+    // 1. Initial Load & Seed Relics
+    fetchRemoteRelics().then((remoteRelics) => {
+      if (remoteRelics && remoteRelics.length > 0) {
+        setRelics(remoteRelics)
+        localStorage.setItem('saturn_vault_relics', JSON.stringify(remoteRelics))
+      } else if (remoteRelics && remoteRelics.length === 0) {
+        syncAllRelicsToRemote(relics)
+      }
+    })
+
+    // 2. Initial Load Orders
+    fetchRemoteOrders().then((remoteOrders) => {
+      if (remoteOrders && remoteOrders.length > 0) {
+        setAllOrders(remoteOrders)
+        localStorage.setItem('saturn_all_orders', JSON.stringify(remoteOrders))
+      }
+    })
+
+    // 3. Initial Load Config (Banner, Offers, Settings)
+    fetchRemoteConfig('announcement_banner').then((remoteBanner) => {
+      if (remoteBanner) {
+        setAnnouncementBanner(remoteBanner)
+        localStorage.setItem('saturn_announcement_banner', JSON.stringify(remoteBanner))
+      }
+    })
+    fetchRemoteConfig('store_offers').then((remoteOffers) => {
+      if (remoteOffers) {
+        setActiveOffers(remoteOffers)
+        localStorage.setItem('saturn_store_offers', JSON.stringify(remoteOffers))
+      }
+    })
+    fetchRemoteConfig('store_settings').then((remoteSettings) => {
+      if (remoteSettings) {
+        setStoreSettings(remoteSettings)
+        localStorage.setItem('saturn_store_settings', JSON.stringify(remoteSettings))
+      }
+    })
+
+    // 4. Realtime Subscription: Relics (Instant Stock & Catalog Updates)
+    const unsubRelics = subscribeToRelics((payload) => {
+      if (payload.eventType === 'UPDATE') {
+        const u = payload.new
+        setRelics((prev) =>
+          prev.map((r) =>
+            r.id === u.id
+              ? {
+                  ...r,
+                  lot: u.lot,
+                  category: u.category,
+                  badge: u.badge,
+                  title: u.title,
+                  price: Number(u.price),
+                  year: u.year,
+                  tag: u.tag,
+                  barcode: u.barcode,
+                  measurements: u.measurements,
+                  desc: u.desc,
+                  img: u.img,
+                  isSold: Boolean(u.is_sold),
+                }
+              : r
+          )
+        )
+      } else if (payload.eventType === 'INSERT') {
+        const n = payload.new
+        const item = {
+          id: n.id,
+          lot: n.lot,
+          category: n.category,
+          badge: n.badge,
+          title: n.title,
+          price: Number(n.price),
+          year: n.year,
+          tag: n.tag,
+          barcode: n.barcode,
+          measurements: n.measurements,
+          desc: n.desc,
+          img: n.img,
+          isSold: Boolean(n.is_sold),
+        }
+        setRelics((prev) => (prev.some((r) => r.id === item.id) ? prev : [item, ...prev]))
+      } else if (payload.eventType === 'DELETE') {
+        const delId = payload.old?.id
+        if (delId) {
+          setRelics((prev) => prev.filter((r) => r.id !== delId))
+        }
+      }
+    })
+
+    // 5. Realtime Subscription: Orders (Instant Curator Alerts)
+    const unsubOrders = subscribeToOrders((payload) => {
+      if (payload.eventType === 'INSERT') {
+        const o = payload.new
+        const newOrder = {
+          id: o.id,
+          date: o.date,
+          shipping: o.shipping,
+          items: o.items,
+          subtotal: Number(o.subtotal),
+          discount: Number(o.discount || 0),
+          couponCode: o.coupon_code,
+          total: Number(o.total),
+          paymentRail: o.payment_rail,
+          codTokenAmount: Number(o.cod_token_amount || 0),
+          codBalanceAmount: Number(o.cod_balance_amount || 0),
+          utrNumber: o.utr_number,
+          status: o.status,
+        }
+        setAllOrders((prev) => (prev.some((ord) => ord.id === newOrder.id) ? prev : [newOrder, ...prev]))
+      } else if (payload.eventType === 'UPDATE') {
+        setAllOrders((prev) =>
+          prev.map((ord) => (ord.id === payload.new.id ? { ...ord, status: payload.new.status } : ord))
+        )
+      }
+    })
+
+    // 6. Realtime Subscription: Store Config (Instant Flash Banner & Promos)
+    const unsubConfig = subscribeToStoreConfig((payload) => {
+      const { key, value } = payload.new || {}
+      if (key === 'announcement_banner' && value) {
+        setAnnouncementBanner(value)
+        localStorage.setItem('saturn_announcement_banner', JSON.stringify(value))
+      } else if (key === 'store_offers' && value) {
+        setActiveOffers(value)
+        localStorage.setItem('saturn_store_offers', JSON.stringify(value))
+      } else if (key === 'store_settings' && value) {
+        setStoreSettings(value)
+        localStorage.setItem('saturn_store_settings', JSON.stringify(value))
+      }
+    })
+
+    return () => {
+      unsubRelics()
+      unsubOrders()
+      unsubConfig()
+    }
+  }, [])
+
+
   // Category Filter & 3D Hanger State
   const [activeCategory, setActiveCategory] = useState('all')
 
@@ -502,6 +661,11 @@ export default function App() {
   }
 
   const handleOrderComplete = (order) => {
+    // 1. Mark purchased relics as SOLD OUT immediately for all collectors
+    const purchasedIds = new Set((order.items || []).map((i) => i.id))
+    const updatedRelics = relics.map((r) => (purchasedIds.has(r.id) ? { ...r, isSold: true } : r))
+    handleUpdateRelics(updatedRelics)
+
     // Clear cart stack upon confirmed vault acquisition
     setCart([])
 
@@ -531,6 +695,7 @@ export default function App() {
     const updatedOrders = [newOrderRecord, ...allOrders]
     setAllOrders(updatedOrders)
     localStorage.setItem('saturn_all_orders', JSON.stringify(updatedOrders))
+    insertRemoteOrder(newOrderRecord)
 
     if (currentUser) {
       const updatedUser = {

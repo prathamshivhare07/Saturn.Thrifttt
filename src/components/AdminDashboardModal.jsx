@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { deleteRemoteRelic } from '../lib/supabase'
 
 export default function AdminDashboardModal({
   isOpen,
@@ -144,6 +145,7 @@ export default function AdminDashboardModal({
     if (window.confirm(`Delete "${title}" from the live vault catalog?`)) {
       const updated = relics.filter((r) => r.id !== id)
       onUpdateRelics(updated)
+      deleteRemoteRelic(id)
     }
   }
 
