@@ -5,6 +5,11 @@ import { emailOtpPlugin } from './server/email-otp-plugin.js'
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react(), emailOtpPlugin()],
+  server: {
+    watch: {
+      ignored: ['**/public/models/**', '**/public/frames/**', '**/public/frames2/**'],
+    },
+  },
 })
 
 
