@@ -1,6 +1,7 @@
 // Twilio Email OTP Verification Vite Middleware
 // Supports Twilio Verify (Channel: email) & Twilio SendGrid Email API
 import https from 'node:https'
+import { Resend } from 'resend'
 
 // In-memory token store for local dev fallback & token tracking
 const emailOtpStore = new Map()
@@ -83,6 +84,7 @@ export function emailOtpPlugin() {
                 expiresAt: Date.now() + 10 * 60 * 1000,
               })
 
+              const resendApiKey = process.env.RESEND_API_KEY
               const accountSid = process.env.TWILIO_ACCOUNT_SID
               const authToken = process.env.TWILIO_AUTH_TOKEN
               const verifySid = process.env.TWILIO_VERIFY_SERVICE_SID
@@ -92,7 +94,55 @@ export function emailOtpPlugin() {
               const fromName = fromConfig.name
 
               // ============================================================
-              // Path 1: Twilio Verify API (Channel: 'email')
+              // Priority 1: Resend API (Recommended - 3,000 free emails/mo)
+              // ============================================================
+              if (resendApiKey && !resendApiKey.includes('your_resend')) {
+                try {
+                  const resend = new Resend(resendApiKey)
+                  const sender = process.env.EMAIL_FROM || 'Saturn Archive <onboarding@resend.dev>'
+
+                  const { data, error } = await resend.emails.send({
+                    from: sender,
+                    to: [normalizedEmail],
+                    subject: `✦ Your Saturn.thrifttt Vault Passcode: [ ${code} ]`,
+                    html: `
+                      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #fff8f3; padding: 40px 24px; border: 2px solid #1a1715; max-width: 480px; margin: 0 auto; color: #1a1715;">
+                        <div style="text-align: center; margin-bottom: 24px;">
+                          <h2 style="font-size: 20px; letter-spacing: 0.15em; text-transform: uppercase; margin: 0; color: #1a1715;">SATURN.THRIFTTT</h2>
+                          <p style="font-size: 11px; letter-spacing: 0.1em; color: #7d7569; text-transform: uppercase; margin: 4px 0 0 0;">1-of-1 Cosmic Vintage Archive</p>
+                        </div>
+                        <div style="background-color: #ffffff; border: 1px solid #e0d8ce; padding: 24px; text-align: center; margin-bottom: 20px;">
+                          <p style="font-size: 13px; color: #5a544c; margin: 0 0 12px 0;">Your single-use collector verification code:</p>
+                          <div style="font-size: 40px; font-weight: 700; letter-spacing: 0.3em; color: #a45a2a; padding: 12px 0; font-family: monospace;">${code}</div>
+                          <p style="font-size: 11px; color: #9c9488; margin: 8px 0 0 0;">Code valid for 10 minutes. Do not share this passcode.</p>
+                        </div>
+                        <p style="font-size: 11px; color: #7d7569; text-align: center; margin: 0;">Secured via Resend · Saturn Archive Vault</p>
+                      </div>
+                    `,
+                  })
+
+                  if (!error && data?.id) {
+                    console.log(`[RESEND EMAIL] Passcode dispatched to ${normalizedEmail} (ID: ${data.id})`)
+                    res.statusCode = 200
+                    res.end(JSON.stringify({
+                      success: true,
+                      simulated: false,
+                      provider: 'resend',
+                      email: normalizedEmail,
+                      id: data.id,
+                      message: `Passcode sent to ${normalizedEmail} via Resend.`,
+                    }))
+                    return
+                  } else if (error) {
+                    console.error('[RESEND ERROR]', error)
+                  }
+                } catch (err) {
+                  console.error('[RESEND EXCEPTION]', err)
+                }
+              }
+
+              // ============================================================
+              // Priority 2: Twilio Verify API (Channel: 'email')
               // ============================================================
               if (accountSid && authToken && verifySid && !accountSid.includes('your_account_sid')) {
                 const authHeader = Buffer.from(`${accountSid}:${authToken}`).toString('base64')
@@ -177,9 +227,9 @@ export function emailOtpPlugin() {
 
               // In Local Development ONLY (localhost): Log & allow fast test auto-fill
               console.log(`\n=================================================`)
-              console.log(`[TWILIO EMAIL DISPATCH · LOCAL DEV ONLY]`)
+              console.log(`[EMAIL DISPATCH · LOCAL DEV SIMULATION]`)
               console.log(`To: ${normalizedEmail}`)
-              console.log(`Provider: Twilio Verify / SendGrid Email Rail`)
+              console.log(`Provider: Resend / Local Dev Rail`)
               console.log(`Dev Passcode: [ ${code} ]`)
               console.log(`Note: This dev auto-fill code is strictly hidden in production mode.`)
               console.log(`=================================================\n`)
@@ -188,15 +238,15 @@ export function emailOtpPlugin() {
               res.end(JSON.stringify({
                 success: true,
                 simulated: true,
-                provider: 'twilio_simulated',
+                provider: 'dev_simulated',
                 code: code,
                 email: normalizedEmail,
-                message: `Passcode dispatched to ${normalizedEmail} via Twilio Email Rail.`,
+                message: `Passcode dispatched to ${normalizedEmail} via local dev simulator.`,
               }))
             } catch (err) {
               console.error('API send-email-otp error:', err)
               res.statusCode = 500
-              res.end(JSON.stringify({ success: false, error: err?.message || 'Internal server error dispatching Twilio email OTP' }))
+              res.end(JSON.stringify({ success: false, error: err?.message || 'Internal server error dispatching email OTP' }))
             }
           })
           return

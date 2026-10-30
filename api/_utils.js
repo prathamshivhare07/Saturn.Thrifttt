@@ -1,4 +1,5 @@
 import https from 'node:https'
+import { createClient } from '@supabase/supabase-js'
 
 // Global in-memory store (retained during warm container lifecycles)
 if (!globalThis.__saturnOtpStore) {
@@ -6,8 +7,76 @@ if (!globalThis.__saturnOtpStore) {
 }
 export const emailOtpStore = globalThis.__saturnOtpStore
 
+/**
+ * Supabase client for persisting OTP verifications across serverless instances
+ */
+export function getSupabaseServerClient() {
+  const url = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY
+  if (!url || !key) return null
+  return createClient(url, key, { auth: { persistSession: false } })
+}
+
+/**
+ * Persists OTP in both in-memory store and Supabase for serverless resilience
+ */
+export async function saveOtp(email, code, expiresAt) {
+  emailOtpStore.set(email, { code, expiresAt })
+  try {
+    const supabase = getSupabaseServerClient()
+    if (supabase) {
+      await supabase.from('store_config').upsert({
+        key: `otp:${email}`,
+        value: { code, expiresAt },
+      })
+    }
+  } catch (err) {
+    console.warn('[OTP STORE] Note: Supabase store_config save skipped, using memory cache:', err?.message)
+  }
+}
+
+/**
+ * Verifies and consumes the OTP from either memory or Supabase store
+ */
+export async function verifyAndConsumeOtp(email, enteredCode) {
+  // 1. Check in-memory cache first (instant)
+  const stored = emailOtpStore.get(email)
+  if (stored && stored.code === enteredCode && stored.expiresAt > Date.now()) {
+    emailOtpStore.delete(email)
+    try {
+      const supabase = getSupabaseServerClient()
+      if (supabase) {
+        await supabase.from('store_config').delete().eq('key', `otp:${email}`)
+      }
+    } catch {}
+    return true
+  }
+
+  // 2. Check Supabase (handles cross-container requests on Vercel)
+  try {
+    const supabase = getSupabaseServerClient()
+    if (supabase) {
+      const { data, error } = await supabase
+        .from('store_config')
+        .select('value')
+        .eq('key', `otp:${email}`)
+        .maybeSingle()
+
+      if (!error && data?.value && data.value.code === enteredCode && data.value.expiresAt > Date.now()) {
+        await supabase.from('store_config').delete().eq('key', `otp:${email}`)
+        emailOtpStore.delete(email)
+        return true
+      }
+    }
+  } catch (err) {
+    console.warn('[OTP VERIFY] Note: Supabase check encountered:', err?.message)
+  }
+
+  return false
+}
+
 export function parseEmailFrom(raw) {
-  if (!raw) return { email: 'vault@saturn.thrifttt', name: 'Saturn Archive' }
+  if (!raw) return { email: 'onboarding@resend.dev', name: 'Saturn Archive' }
   const clean = String(raw).replace(/^["']|["']$/g, '').trim()
   const match = clean.match(/^(?:(.*)<)?([^<>]+)>?$/)
   if (match && match[2] && match[2].includes('@')) {
@@ -92,4 +161,3 @@ export function sendTwilioRequest(url, authHeader, bodyParams, isJson = false) {
     req.end()
   })
 }
-

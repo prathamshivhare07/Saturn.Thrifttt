@@ -1,4 +1,4 @@
-import { emailOtpStore, setCorsHeaders, getRequestBody, sendTwilioRequest } from './_utils.js'
+import { setCorsHeaders, getRequestBody, sendTwilioRequest, verifyAndConsumeOtp } from './_utils.js'
 
 export default async function handler(req, res) {
   setCorsHeaders(res)
@@ -33,7 +33,17 @@ export default async function handler(req, res) {
     const verifySid = process.env.TWILIO_VERIFY_SERVICE_SID
 
     // ============================================================
-    // Path 1: Twilio Verify Check API
+    // Path 1: Resend / Supabase Store Verification (Primary)
+    // ============================================================
+    const isValid = await verifyAndConsumeOtp(normalizedEmail, enteredCode)
+    if (isValid) {
+      res.statusCode = 200
+      res.end(JSON.stringify({ success: true, verified: true }))
+      return
+    }
+
+    // ============================================================
+    // Path 2: Twilio Verify Check API (Secondary/Fallback)
     // ============================================================
     if (accountSid && authToken && verifySid && !accountSid.includes('your_account_sid')) {
       const authHeader = Buffer.from(`${accountSid}:${authToken}`).toString('base64')
@@ -51,17 +61,6 @@ export default async function handler(req, res) {
       }
     }
 
-    // ============================================================
-    // Path 2: In-Memory / Dev Cache Verification
-    // ============================================================
-    const stored = emailOtpStore.get(normalizedEmail)
-    if (stored && stored.code === enteredCode && stored.expiresAt > Date.now()) {
-      emailOtpStore.delete(normalizedEmail)
-      res.statusCode = 200
-      res.end(JSON.stringify({ success: true, verified: true }))
-      return
-    }
-
     res.statusCode = 400
     res.end(JSON.stringify({ success: false, error: 'Invalid or expired passcode. Please request a new code.' }))
   } catch (err) {
@@ -70,4 +69,3 @@ export default async function handler(req, res) {
     res.end(JSON.stringify({ success: false, error: err?.message || 'Internal server error verifying OTP' }))
   }
 }
-

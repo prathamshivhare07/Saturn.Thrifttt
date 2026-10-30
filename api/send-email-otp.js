@@ -1,4 +1,5 @@
-import { emailOtpStore, setCorsHeaders, getRequestBody, sendTwilioRequest, parseEmailFrom } from './_utils.js'
+import { Resend } from 'resend'
+import { setCorsHeaders, getRequestBody, sendTwilioRequest, parseEmailFrom, saveOtp } from './_utils.js'
 
 export default async function handler(req, res) {
   setCorsHeaders(res)
@@ -28,11 +29,12 @@ export default async function handler(req, res) {
 
     const normalizedEmail = email.toLowerCase().trim()
     const code = String(Math.floor(1000 + Math.random() * 9000))
-    emailOtpStore.set(normalizedEmail, {
-      code,
-      expiresAt: Date.now() + 10 * 60 * 1000,
-    })
+    const expiresAt = Date.now() + 10 * 60 * 1000
 
+    // Persist code in memory and Supabase store_config
+    await saveOtp(normalizedEmail, code, expiresAt)
+
+    const resendApiKey = process.env.RESEND_API_KEY
     const accountSid = process.env.TWILIO_ACCOUNT_SID
     const authToken = process.env.TWILIO_AUTH_TOKEN
     const verifySid = process.env.TWILIO_VERIFY_SERVICE_SID
@@ -42,7 +44,55 @@ export default async function handler(req, res) {
     const fromName = fromConfig.name
 
     // ============================================================
-    // Path 1: Twilio Verify API (Channel: 'email')
+    // Priority 1: Resend API (Recommended - 3,000 free emails/mo)
+    // ============================================================
+    if (resendApiKey && !resendApiKey.includes('your_resend') && !resendApiKey.includes('your_api_key')) {
+      try {
+        const resend = new Resend(resendApiKey)
+        const sender = process.env.EMAIL_FROM || 'Saturn Archive <onboarding@resend.dev>'
+
+        const { data, error } = await resend.emails.send({
+          from: sender,
+          to: [normalizedEmail],
+          subject: `✦ Your Saturn.thrifttt Vault Passcode: [ ${code} ]`,
+          html: `
+            <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #fff8f3; padding: 40px 24px; border: 2px solid #1a1715; max-width: 480px; margin: 0 auto; color: #1a1715;">
+              <div style="text-align: center; margin-bottom: 24px;">
+                <h2 style="font-size: 20px; letter-spacing: 0.15em; text-transform: uppercase; margin: 0; color: #1a1715;">SATURN.THRIFTTT</h2>
+                <p style="font-size: 11px; letter-spacing: 0.1em; color: #7d7569; text-transform: uppercase; margin: 4px 0 0 0;">1-of-1 Cosmic Vintage Archive</p>
+              </div>
+              <div style="background-color: #ffffff; border: 1px solid #e0d8ce; padding: 24px; text-align: center; margin-bottom: 20px;">
+                <p style="font-size: 13px; color: #5a544c; margin: 0 0 12px 0;">Your single-use collector verification code:</p>
+                <div style="font-size: 40px; font-weight: 700; letter-spacing: 0.3em; color: #a45a2a; padding: 12px 0; font-family: monospace;">${code}</div>
+                <p style="font-size: 11px; color: #9c9488; margin: 8px 0 0 0;">Code valid for 10 minutes. Do not share this passcode.</p>
+              </div>
+              <p style="font-size: 11px; color: #7d7569; text-align: center; margin: 0;">Secured via Resend · Saturn Archive Vault</p>
+            </div>
+          `,
+        })
+
+        if (!error && data?.id) {
+          console.log(`[RESEND EMAIL] Passcode dispatched to ${normalizedEmail} (ID: ${data.id})`)
+          res.statusCode = 200
+          res.end(JSON.stringify({
+            success: true,
+            simulated: false,
+            provider: 'resend',
+            email: normalizedEmail,
+            id: data.id,
+            message: `Passcode sent to ${normalizedEmail} via Resend.`,
+          }))
+          return
+        } else if (error) {
+          console.error('[RESEND ERROR]', error)
+        }
+      } catch (err) {
+        console.error('[RESEND EXCEPTION]', err)
+      }
+    }
+
+    // ============================================================
+    // Priority 2: Twilio Verify API (Channel: 'email') - Secondary
     // ============================================================
     if (accountSid && authToken && verifySid && !accountSid.includes('your_account_sid')) {
       const authHeader = Buffer.from(`${accountSid}:${authToken}`).toString('base64')
@@ -71,7 +121,7 @@ export default async function handler(req, res) {
     }
 
     // ============================================================
-    // Path 2: Twilio SendGrid API
+    // Priority 3: Twilio SendGrid API - Legacy fallback
     // ============================================================
     if (sendgridApiKey && !sendgridApiKey.includes('your_sendgrid_key')) {
       const sendgridUrl = 'https://api.sendgrid.com/v3/mail/send'
@@ -110,26 +160,26 @@ export default async function handler(req, res) {
     }
 
     // ============================================================
-    // Path 3: Fallback & Security Layer
+    // Fallback & Security Layer
     // ============================================================
     const isDev = process.env.NODE_ENV !== 'production'
 
     if (!isDev) {
-      console.error(`[PRODUCTION SECURITY NOTICE] Twilio email dispatch failed for ${normalizedEmail}. Passcode will NOT be exposed to client.`)
+      console.error(`[PRODUCTION NOTICE] Email dispatch failed for ${normalizedEmail}. Passcode will NOT be exposed to client.`)
       res.statusCode = 503
       res.end(JSON.stringify({
         success: false,
-        error: 'Email verification service is temporarily unavailable. Please try again in a few moments or contact support on WhatsApp.',
+        error: 'Email verification service is temporarily unavailable. Please verify your RESEND_API_KEY in Vercel settings or contact support on WhatsApp.',
       }))
       return
     }
 
     // In Local Development ONLY (localhost): Log & allow fast test auto-fill
     console.log(`\n=================================================`)
-    console.log(`[TWILIO EMAIL DISPATCH · LOCAL DEV ONLY]`)
+    console.log(`[EMAIL DISPATCH · LOCAL DEV SIMULATION]`)
     console.log(`To: ${normalizedEmail}`)
-    console.log(`Provider: Twilio Verify / SendGrid Email Rail`)
     console.log(`Dev Passcode: [ ${code} ]`)
+    console.log(`Provider: Resend / Local Dev Rail`)
     console.log(`Note: This dev auto-fill code is strictly hidden in production mode.`)
     console.log(`=================================================\n`)
 
@@ -137,15 +187,14 @@ export default async function handler(req, res) {
     res.end(JSON.stringify({
       success: true,
       simulated: true,
-      provider: 'twilio_simulated',
+      provider: 'dev_simulated',
       code: code,
       email: normalizedEmail,
-      message: `Passcode dispatched to ${normalizedEmail} via Twilio Email Rail.`,
+      message: `Passcode dispatched to ${normalizedEmail} via local dev simulator.`,
     }))
   } catch (err) {
     console.error('API send-email-otp error:', err)
     res.statusCode = 500
-    res.end(JSON.stringify({ success: false, error: err?.message || 'Internal server error dispatching Twilio email OTP' }))
+    res.end(JSON.stringify({ success: false, error: err?.message || 'Internal server error dispatching email OTP' }))
   }
 }
-

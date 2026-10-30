@@ -306,7 +306,6 @@ export default function App() {
   const animationFrameIdRef = useRef(null)
 
   // State
-  const [activeFrameDisplay, setActiveFrameDisplay] = useState(1)
   const [heroScrollFraction, setHeroScrollFraction] = useState(0)
   const [savedCount, setSavedCount] = useState(80)
   const [isSavedActive, setIsSavedActive] = useState(false)
@@ -884,7 +883,6 @@ export default function App() {
       if (frameToDraw !== lastRenderedFrame) {
         drawFrame(frameToDraw)
         lastRenderedFrame = frameToDraw
-        setActiveFrameDisplay(frameToDraw + 1)
       }
 
       if (Math.abs(target - currentFrameRef.current) > 0.01) {
