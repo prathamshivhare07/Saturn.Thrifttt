@@ -272,3 +272,4 @@ export function subscribeToStoreConfig(onChange) {
     supabase.removeChannel(channel)
   }
 }
+
