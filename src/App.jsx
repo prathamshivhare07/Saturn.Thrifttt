@@ -665,11 +665,16 @@ export default function App() {
   useEffect(() => {
     if (!isSupabaseConfigured) return
 
-    // 1. Initial Load & Seed Relics
+    // 1. Initial Load & Seed Relics (Merge remote drops with local vault catalog)
     fetchRemoteRelics().then((remoteRelics) => {
       if (remoteRelics && remoteRelics.length > 0) {
-        setRelics(remoteRelics)
-        localStorage.setItem('saturn_vault_relics', JSON.stringify(remoteRelics))
+        setRelics((prev) => {
+          const remoteIds = new Set(remoteRelics.map((r) => r.id))
+          const missing = prev.filter((r) => !remoteIds.has(r.id))
+          const merged = [...remoteRelics, ...missing]
+          localStorage.setItem('saturn_vault_relics', JSON.stringify(merged))
+          return merged
+        })
       } else if (remoteRelics && remoteRelics.length === 0) {
         syncAllRelicsToRemote(relics)
       }
