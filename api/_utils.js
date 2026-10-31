@@ -141,7 +141,7 @@ export async function verifyAndConsumeOtp(email, enteredCode, token) {
 }
 
 export function parseEmailFrom(raw) {
-  if (!raw) return { email: 'onboarding@resend.dev', name: 'Saturn Archive' }
+  if (!raw) return { email: 'vault@saturnthrifttt.in', name: 'Saturn Archive' }
   const clean = String(raw).replace(/^["']|["']$/g, '').trim()
   const match = clean.match(/^(?:(.*)<)?([^<>]+)>?$/)
   if (match && match[2] && match[2].includes('@')) {

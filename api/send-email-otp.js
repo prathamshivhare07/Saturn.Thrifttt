@@ -51,7 +51,7 @@ export default async function handler(req, res) {
     if (resendApiKey && !resendApiKey.includes('your_resend') && !resendApiKey.includes('your_api_key')) {
       try {
         const resend = new Resend(resendApiKey)
-        const sender = process.env.EMAIL_FROM || 'Saturn Archive <onboarding@resend.dev>'
+        const sender = process.env.EMAIL_FROM || 'Saturn Archive <vault@saturnthrifttt.in>'
 
         const { data, error } = await resend.emails.send({
           from: sender,

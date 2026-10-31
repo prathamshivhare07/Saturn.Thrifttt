@@ -136,7 +136,7 @@ export function emailOtpPlugin() {
               if (resendApiKey && !resendApiKey.includes('your_resend')) {
                 try {
                   const resend = new Resend(resendApiKey)
-                  const sender = process.env.EMAIL_FROM || 'Saturn Archive <onboarding@resend.dev>'
+                  const sender = process.env.EMAIL_FROM || 'Saturn Archive <vault@saturnthrifttt.in>'
 
                   const { data, error } = await resend.emails.send({
                     from: sender,
