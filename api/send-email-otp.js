@@ -43,6 +43,7 @@ export default async function handler(req, res) {
     const fromConfig = parseEmailFrom(process.env.EMAIL_FROM)
     const fromEmail = fromConfig.email
     const fromName = fromConfig.name
+    let lastError = ''
 
     // ============================================================
     // Priority 1: Resend API (Recommended - 3,000 free emails/mo)
@@ -87,9 +88,51 @@ export default async function handler(req, res) {
           return
         } else if (error) {
           console.error('[RESEND ERROR]', error)
+          lastError = error.message || 'Resend error'
+
+          // Handle Resend testing domain limitation (403 validation_error)
+          // "You can only send testing emails to your own email address (prathamshivhare77@gmail.com)..."
+          if (error.statusCode === 403 || String(error.message || '').includes('only send testing emails')) {
+            const ownerEmail = 'prathamshivhare77@gmail.com'
+            try {
+              await resend.emails.send({
+                from: sender,
+                to: [ownerEmail],
+                subject: `✦ Saturn.thrifttt Passcode for [${normalizedEmail}]: [ ${code} ]`,
+                html: `
+                  <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #fff8f3; padding: 32px 24px; border: 2px solid #1a1715; max-width: 480px; margin: 0 auto; color: #1a1715;">
+                    <h3 style="margin: 0 0 12px 0;">SATURN ARCHIVE (RESEND SANDBOX NOTICE)</h3>
+                    <p style="font-size: 13px; color: #5a544c;">A user attempted to sign in with unverified address <strong>${normalizedEmail}</strong>.</p>
+                    <p style="font-size: 13px; color: #5a544c;">Collector Vault Passcode:</p>
+                    <div style="font-size: 36px; font-weight: 700; letter-spacing: 0.3em; color: #a45a2a; padding: 12px 0; font-family: monospace;">${code}</div>
+                    <p style="font-size: 11px; color: #7d7569; margin-top: 16px;">
+                      💡 Note: To send emails directly to all public customer emails, add your domain at <a href="https://resend.com/domains" target="_blank">resend.com/domains</a>.
+                    </p>
+                  </div>
+                `,
+              })
+              console.log(`[RESEND SANDBOX] Passcode copy sent to owner ${ownerEmail}`)
+            } catch (forwardErr) {
+              console.warn('[RESEND OWNER FORWARD EXCEPTION]', forwardErr)
+            }
+
+            res.statusCode = 200
+            res.end(JSON.stringify({
+              success: true,
+              simulated: true,
+              provider: 'resend_sandbox',
+              email: normalizedEmail,
+              code: code,
+              token,
+              sandboxNotice: `Resend Sandbox Active: Since onboarding@resend.dev is in test mode, your code was delivered to registered Resend account (${ownerEmail}). Test passcode [ ${code} ] ready. Connect your custom domain at resend.com/domains to send to any public address.`,
+              message: `Test passcode generated for ${normalizedEmail}.`,
+            }))
+            return
+          }
         }
       } catch (err) {
         console.error('[RESEND EXCEPTION]', err)
+        lastError = err.message || 'Resend exception'
       }
     }
 
@@ -173,7 +216,7 @@ export default async function handler(req, res) {
       res.statusCode = 503
       res.end(JSON.stringify({
         success: false,
-        error: 'Email verification service is temporarily unavailable. Please verify your RESEND_API_KEY in Vercel settings or contact support on WhatsApp.',
+        error: lastError || 'Email verification service is temporarily unavailable. Please verify your RESEND_API_KEY in Vercel settings or contact support on WhatsApp.',
       }))
       return
     }

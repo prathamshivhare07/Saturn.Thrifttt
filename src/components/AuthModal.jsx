@@ -13,6 +13,7 @@ export default function AuthModal({
   const [otpDigits, setOtpDigits] = useState(['', '', '', ''])
   const [otpToken, setOtpToken] = useState('')
   const [generatedOtp, setGeneratedOtp] = useState('')
+  const [sandboxNotice, setSandboxNotice] = useState('')
   const [isSimulated, setIsSimulated] = useState(true)
   const [resendTimer, setResendTimer] = useState(30)
   const [isSending, setIsSending] = useState(false)
@@ -27,6 +28,7 @@ export default function AuthModal({
     if (!isOpen) {
       setError('')
       setSuccessMsg('')
+      setSandboxNotice('')
       setAuthStep('email')
       setOtpDigits(['', '', '', ''])
       setOtpToken('')
@@ -106,12 +108,20 @@ export default function AuthModal({
       const data = await res.json()
       if (data.success) {
         setOtpToken(data.token || '')
-        // In local development, capture code for test auto-fill; in production, code is strictly empty
-        setGeneratedOtp(import.meta.env.DEV ? (data.code || '') : '')
+        setGeneratedOtp(data.code || '')
+        setSandboxNotice(data.sandboxNotice || '')
         setIsSimulated(Boolean(data.simulated))
         setAuthStep('otp')
         setResendTimer(30)
-        setOtpDigits(['', '', '', ''])
+        
+        // In sandbox or dev mode, auto-fill the test passcode
+        if (data.code && data.simulated) {
+          const digits = String(data.code).split('')
+          setOtpDigits(digits)
+        } else {
+          setOtpDigits(['', '', '', ''])
+        }
+
         setTimeout(() => {
           otpInputRefs[0].current?.focus()
         }, 150)
@@ -365,18 +375,34 @@ export default function AuthModal({
                   </p>
                 </div>
 
-                {/* Verification Notice */}
-                <div className="live-email-banner">
-                  <span className="material-symbols-outlined" style={{ fontSize: 20, color: '#16a34a' }}>
-                    mark_email_read
-                  </span>
-                  <div>
-                    <div style={{ fontWeight: 800 }}>AUTHENTICATION CODE DISPATCHED</div>
-                    <div style={{ fontSize: 10, color: 'var(--on-surface-variant)' }}>
-                      Check your email inbox or spam folder for your 4-digit access code.
+                {/* Sandbox / Testing Notice Banner */}
+                {sandboxNotice ? (
+                  <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 6, padding: '10px 12px', margin: '0 0 14px 0', fontSize: 11, color: '#92400e', fontFamily: 'var(--font-mono)' }}>
+                    <div style={{ fontWeight: 800, display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4, color: '#b45309' }}>
+                      <span className="material-symbols-outlined" style={{ fontSize: 15, color: '#d97706' }}>info</span>
+                      <span>RESEND SANDBOX ACTIVE (TESTING MODE)</span>
+                    </div>
+                    <div style={{ lineHeight: 1.4 }}>
+                      Passcode dispatched to Resend owner email (<strong>prathamshivhare77@gmail.com</strong>). Passcode <strong style={{ color: '#b45309', letterSpacing: '0.1em' }}>[{generatedOtp}]</strong> auto-filled below for instant testing.
+                    </div>
+                    <div style={{ fontSize: 9.5, color: '#78350f', marginTop: 6 }}>
+                      ✦ To deliver emails directly to all public customer emails, connect your custom domain at <a href="https://resend.com/domains" target="_blank" rel="noopener noreferrer" style={{ color: '#b45309', textDecoration: 'underline' }}>resend.com/domains</a>.
                     </div>
                   </div>
-                </div>
+                ) : (
+                  /* Verification Notice */
+                  <div className="live-email-banner">
+                    <span className="material-symbols-outlined" style={{ fontSize: 20, color: '#16a34a' }}>
+                      mark_email_read
+                    </span>
+                    <div>
+                      <div style={{ fontWeight: 800 }}>AUTHENTICATION CODE DISPATCHED</div>
+                      <div style={{ fontSize: 10, color: 'var(--on-surface-variant)' }}>
+                        Check your email inbox or spam folder for your 4-digit access code.
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {/* 4-Box Segmented OTP Inputs */}
                 <div className="otp-boxes-container" onPaste={handleOtpPaste}>
