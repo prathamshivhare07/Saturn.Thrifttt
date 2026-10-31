@@ -4235,66 +4235,413 @@
     font-size: 10px;
   }
 
-  /* Hero Stage & Interactive 3D Rack */
-  .hero-interactive-stage {
-    padding: 0 16px;
-    margin-top: 50px;
-    gap: 14px;
+  /* Mobile Lite Hero Scroll Track */
+  .hero-scroll-track.mobile-lite-track {
+    height: auto !important;
+    min-height: auto !important;
+    position: relative !important;
+    background: var(--surface);
+    overflow: visible;
+    padding-bottom: 24px;
   }
 
-  .hero-content-overlay {
+  .hero-sticky-viewport.mobile-lite-viewport {
+    position: relative !important;
+    top: auto !important;
+    height: auto !important;
+    min-height: auto !important;
+    width: 100% !important;
+    overflow: visible !important;
+    display: block !important;
+    padding-top: 64px;
+  }
+
+  .mobile-lite-viewport .hero-canvas-wrap {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0.16;
+    filter: blur(3px);
+    pointer-events: none;
+  }
+
+  /* Hero Stage in Mobile Lite Mode */
+  .hero-interactive-stage.mobile-lite-stage {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    padding: 16px 14px 0 14px;
+    margin: 0;
+    gap: 16px;
+    pointer-events: auto;
+    opacity: 1 !important;
+    transform: none !important;
+    visibility: visible !important;
+  }
+
+  .mobile-lite-stage .hero-content-overlay {
     max-width: 100%;
-    padding: 0 4px;
+    padding: 0;
+    transform: none !important;
+    align-items: center;
+    text-align: center;
   }
 
-  .hero-title-glitch {
-    font-size: clamp(28px, 7.5vw, 40px);
+  .mobile-lite-stage .hero-stamp-badge {
+    margin: 0 auto 10px auto;
+    font-size: 8.5px;
+    padding: 3px 8px;
+  }
+
+  .mobile-lite-stage .hero-heading {
+    font-size: clamp(28px, 8.5vw, 38px);
     line-height: 1.1;
+    text-align: center;
+    letter-spacing: -0.02em;
+    margin-bottom: 10px;
   }
 
-  .hero-subtitle-archival {
+  .mobile-lite-stage .hero-description {
     font-size: 12px;
     line-height: 1.5;
+    text-align: center;
+    max-width: 440px;
+    margin: 0 auto 16px auto;
+    color: var(--on-surface-variant);
   }
 
-  .hero-actions-row {
-    flex-direction: column;
-    gap: 10px;
+  .mobile-lite-stage .hero-cta-group {
+    display: flex;
+    flex-direction: row;
+    gap: 8px;
     width: 100%;
+    max-width: 380px;
+    margin: 0 auto;
   }
 
-  .btn-primary-archive,
-  .btn-secondary-archive {
-    width: 100%;
+  .mobile-lite-stage .btn-primary-archive,
+  .mobile-lite-stage .btn-secondary-archive {
+    flex: 1;
+    font-size: 11px;
+    padding: 10px 12px;
+    text-align: center;
     justify-content: center;
-    padding: 10px 16px;
-    font-size: 12px;
     box-sizing: border-box;
   }
 
-  .hero-3d-rack-container {
-    width: 100% !important;
-    max-width: 100% !important;
-    height: 340px !important;
-    flex: 0 0 auto !important;
-    margin: 8px auto 0 auto;
+  /* Mobile Lite Showcase Component */
+  .mobile-lite-showcase {
+    width: 100%;
+    margin-top: 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
   }
 
-  .hero-bottom-hud {
-    padding: 10px 14px 16px 14px;
+  .mobile-lite-category-label {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-family: var(--font-mono);
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    color: var(--on-surface-variant);
+    text-transform: uppercase;
+  }
+
+  .mobile-lite-category-pills {
+    display: flex;
     gap: 8px;
+    overflow-x: auto;
+    padding-bottom: 4px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
   }
 
-  .scroll-cue-pill {
+  .mobile-lite-category-pills::-webkit-scrollbar {
     display: none;
   }
 
-  .timeline-scrubber-pill {
-    padding: 5px 10px;
+  .mobile-cat-pill {
+    background: var(--surface-container);
+    border: 1.5px solid var(--outline-variant);
+    color: var(--on-surface);
+    padding: 7px 12px;
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    white-space: nowrap;
+    cursor: pointer;
+    border-radius: 2px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    transition: all 0.15s ease;
   }
 
-  .scrubber-track {
-    width: 70px;
+  .mobile-cat-pill:hover,
+  .mobile-cat-pill.active {
+    background: var(--on-surface);
+    color: var(--surface);
+    border-color: var(--on-surface);
+  }
+
+  /* Featured Relics Horizontal Scroll */
+  .mobile-lite-featured-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 2px;
+  }
+
+  .mobile-lite-featured-title {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.1em;
+    color: var(--primary);
+  }
+
+  .mobile-lite-swipe-hint {
+    font-family: var(--font-mono);
+    font-size: 8.5px;
+    color: var(--on-surface-variant);
+    letter-spacing: 0.05em;
+  }
+
+  .mobile-lite-cards-scroll {
+    display: flex;
+    gap: 10px;
+    overflow-x: auto;
+    padding: 2px 2px 6px 2px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    scroll-snap-type: x mandatory;
+  }
+
+  .mobile-lite-cards-scroll::-webkit-scrollbar {
+    display: none;
+  }
+
+  .mobile-lite-card {
+    flex: 0 0 195px;
+    background: var(--surface-container-low, #fffdfa);
+    border: 1.5px solid var(--on-surface);
+    box-shadow: 2px 2px 0 var(--on-surface);
+    display: flex;
+    flex-direction: column;
+    scroll-snap-align: start;
+    border-radius: 2px;
+    overflow: hidden;
+  }
+
+  .mobile-lite-img-box {
+    position: relative;
+    width: 100%;
+    height: 165px;
+    background: #f4ede4;
+    overflow: hidden;
+  }
+
+  .mobile-lite-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .mobile-lite-badge {
+    position: absolute;
+    top: 6px;
+    left: 6px;
+    background: var(--on-surface);
+    color: var(--surface);
+    font-family: var(--font-mono);
+    font-size: 8px;
+    font-weight: 800;
+    padding: 2px 5px;
+    letter-spacing: 0.06em;
+  }
+
+  .mobile-lite-info {
+    padding: 8px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    flex: 1;
+    justify-content: space-between;
+  }
+
+  .mobile-lite-title {
+    font-family: var(--font-sans);
+    font-size: 12px;
+    font-weight: 800;
+    color: var(--on-surface);
+    line-height: 1.25;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .mobile-lite-tag {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    color: var(--on-surface-variant);
+    text-transform: uppercase;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .mobile-lite-bottom {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 6px;
+    padding-top: 6px;
+    border-top: 1px dashed var(--outline-variant);
+  }
+
+  .mobile-lite-price {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    font-weight: 800;
+    color: var(--on-surface);
+  }
+
+  .mobile-lite-claim-btn {
+    background: var(--primary);
+    color: #ffffff;
+    border: none;
+    font-family: var(--font-mono);
+    font-size: 9.5px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    padding: 5px 8px;
+    cursor: pointer;
+    border-radius: 2px;
+    transition: all 0.15s ease;
+  }
+
+  .mobile-lite-claim-btn.claimed {
+    background: #2e7d32;
+  }
+
+  /* Mobile Trust Strip */
+  .mobile-lite-trust-strip {
+    display: flex;
+    justify-content: space-around;
+    padding: 8px;
+    background: var(--surface-container);
+    border: 1px solid var(--outline-variant);
+    border-radius: 2px;
+    gap: 4px;
+  }
+
+  .trust-item {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    font-family: var(--font-mono);
+    font-size: 9px;
+    font-weight: 700;
+    color: var(--on-surface);
+    letter-spacing: 0.03em;
+  }
+
+  .trust-item .material-symbols-outlined {
+    font-size: 13px;
+    color: var(--primary);
+  }
+
+  /* Mobile Services Section (Replaces fixed Screen 2 on mobile) */
+  .mobile-services-section {
+    padding: 22px 14px;
+    background: var(--surface-container-low);
+    border-top: 1.5px solid var(--outline-variant);
+    border-bottom: 1.5px solid var(--outline-variant);
+    margin-bottom: 16px;
+  }
+
+  .mobile-services-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: var(--primary);
+    color: #ffffff;
+    font-family: var(--font-mono);
+    font-size: 8.5px;
+    font-weight: 800;
+    padding: 2px 7px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+
+  .mobile-services-heading {
+    font-family: var(--font-serif);
+    font-size: 18px;
+    font-weight: 900;
+    letter-spacing: 0.02em;
+    line-height: 1.2;
+    margin-bottom: 4px;
+    color: var(--on-surface);
+  }
+
+  .mobile-services-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 8px;
+    margin-top: 12px;
+  }
+
+  .mobile-service-pill-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 12px;
+    background: var(--surface);
+    border: 1.5px solid var(--on-surface);
+    box-shadow: 2px 2px 0 var(--on-surface);
+    text-decoration: none;
+    color: var(--on-surface);
+    transition: transform 0.15s ease;
+  }
+
+  .mobile-service-pill-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .mobile-service-icon {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background: var(--surface-container);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--primary);
+    flex-shrink: 0;
+  }
+
+  .mobile-service-title {
+    font-family: var(--font-sans);
+    font-weight: 800;
+    font-size: 12.5px;
+  }
+
+  .mobile-service-sub {
+    font-family: var(--font-mono);
+    font-size: 9.5px;
+    color: var(--on-surface-variant);
   }
 
   /* Screen 3: Unboxed Delivery Boxes on Mobile */

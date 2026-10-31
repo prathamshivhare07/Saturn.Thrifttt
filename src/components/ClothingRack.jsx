@@ -7,9 +7,13 @@ import * as THREE from 'three';
 const RACK_MODEL_URL = '/models/clothes_rack.glb';
 const HOODIE_MODEL_URL = '/models/hoodie.glb';
 
-// Pre-load the models
-useGLTF.preload(RACK_MODEL_URL);
-useGLTF.preload(HOODIE_MODEL_URL);
+// Pre-load the 3D models ONLY on desktop devices (>768px) to prevent downloading ~25MB of GLB binaries on mobile phones
+if (typeof window !== 'undefined' && window.innerWidth > 768 && !/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+  try {
+    useGLTF.preload(RACK_MODEL_URL);
+    useGLTF.preload(HOODIE_MODEL_URL);
+  } catch {}
+}
 
 // 3D Clothing Rack Model from src/assets/clothes+rack+3d+model.glb
 export function LuxuryClothingRack() {

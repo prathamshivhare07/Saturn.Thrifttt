@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState, useCallback, lazy, Suspense } from 'react'
-import HeroClothingRack from './components/ClothingRack'
 import AuthModal from './components/AuthModal'
 import CheckoutModal from './components/CheckoutModal'
+import { MobileLiteShowcase, MobileServicesBar } from './components/MobileLiteShowcase'
+
+const HeroClothingRack = lazy(() => import('./components/ClothingRack'))
 import {
   isSupabaseConfigured,
   fetchRemoteRelics,
@@ -306,6 +308,19 @@ export default function App() {
   const animationFrameIdRef = useRef(null)
 
   // State
+  const [isMobile, setIsMobile] = useState(() => {
+    if (typeof window === 'undefined') return false
+    return window.innerWidth <= 768 || /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
+  })
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth <= 768 || /Android|iPhone|iPad|iPod/i.test(navigator.userAgent))
+    }
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
+
   const [heroScrollFraction, setHeroScrollFraction] = useState(0)
   const [savedCount, setSavedCount] = useState(80)
   const [isSavedActive, setIsSavedActive] = useState(false)
@@ -807,8 +822,29 @@ export default function App() {
     drawFrame(currentFrameRef.current)
   }, [drawFrame])
 
-  // Preload frames
+  // Preload frames (Desktop: 441 scrub frames | Mobile Lite: 1 static frame only)
   useEffect(() => {
+    if (isMobile) {
+      // In Mobile Lite Mode: ONLY load Frame 1 as an ultra-fast static ambient background (~300KB)
+      // Completely skips 440 simultaneous downloads (~232MB)!
+      imagesRef.current = new Array(1)
+      loadedFlagsRef.current = new Uint8Array(1)
+
+      const firstImg = new Image()
+      firstImg.src = getFrameUrl(0)
+      firstImg.onload = () => {
+        imagesRef.current[0] = firstImg
+        loadedFlagsRef.current[0] = 1
+        resizeCanvas()
+        drawFrame(0)
+      }
+
+      window.addEventListener('resize', resizeCanvas)
+      return () => {
+        window.removeEventListener('resize', resizeCanvas)
+      }
+    }
+
     imagesRef.current = new Array(TOTAL_FRAMES)
     loadedFlagsRef.current = new Uint8Array(TOTAL_FRAMES)
 
@@ -821,7 +857,7 @@ export default function App() {
       resizeCanvas()
       drawFrame(0)
 
-      // Priority 2: Preload remaining frames
+      // Priority 2: Preload remaining frames on Desktop only
       for (let i = 1; i < TOTAL_FRAMES; i++) {
         const img = new Image()
         img.src = getFrameUrl(i)
@@ -836,11 +872,15 @@ export default function App() {
     return () => {
       window.removeEventListener('resize', resizeCanvas)
     }
-  }, [resizeCanvas, drawFrame])
+  }, [resizeCanvas, drawFrame, isMobile])
 
-  // Handle scroll relative to the hero section track
-  // Handle scroll relative to the hero section track (instant start from scrollY = 0)
+  // Handle scroll relative to the hero section track (Desktop only)
   useEffect(() => {
+    if (isMobile) {
+      // Mobile Lite mode does not scrub 441 frames over scroll
+      return
+    }
+
     const handleScroll = () => {
       const heroTrack = heroTrackRef.current
       if (!heroTrack) return
@@ -862,7 +902,7 @@ export default function App() {
     return () => {
       window.removeEventListener('scroll', handleScroll)
     }
-  }, [])
+  }, [isMobile])
 
   // Smooth scrubbing animation loop (LERP) - only runs during active motion
   useEffect(() => {
@@ -1151,8 +1191,8 @@ export default function App() {
       {/* ====================================================================
           HERO PAGE WITH SCROLLING ANIMATION ENGINE & BRAND RIBBON
           ==================================================================== */}
-      <section className="hero-scroll-track" ref={heroTrackRef}>
-        <div className="hero-sticky-viewport">
+      <section className={`hero-scroll-track ${isMobile ? 'mobile-lite-track' : ''}`} ref={heroTrackRef}>
+        <div className={`hero-sticky-viewport ${isMobile ? 'mobile-lite-viewport' : ''}`}>
           {/* Canvas Engine */}
           <div className="hero-canvas-wrap">
             <canvas ref={canvasRef} className="hero-motion-canvas" />
@@ -1162,21 +1202,21 @@ export default function App() {
 
           {/* Hero Interactive Stage: Left Editorial + Right 3D Cloth Hanger (Screen 1) */}
           <div
-            className="hero-interactive-stage"
-            style={{
+            className={`hero-interactive-stage ${isMobile ? 'mobile-lite-stage' : ''}`}
+            style={!isMobile ? {
               opacity: Math.max(0, 1 - screen1Exit * 1.25),
               transform: `translateY(-${screen1Exit * 36}px)`,
               pointerEvents: screen1Exit > 0.6 ? 'none' : 'auto',
               visibility: screen1Exit >= 1 ? 'hidden' : 'visible',
-            }}
+            } : {}}
           >
             {/* Left: Hero Editorial Overlay - slides smoothly out to the left */}
             <div
               className="hero-content-overlay"
-              style={{
+              style={!isMobile ? {
                 transform: `translateX(-${screen1Exit * 80}px)`,
                 transition: 'transform 0.15s ease-out',
-              }}
+              } : {}}
             >
               <div className="hero-stamp-badge">
                 <span className="star-icon">✦</span>
@@ -1208,29 +1248,49 @@ export default function App() {
               </div>
             </div>
 
-            {/* Right: Interactive 3D Luxury Clothing Rack with In-Place Fade Disappearance */}
-            <div
-              className="hero-3d-rack-container"
-              style={{
-                opacity: Math.max(0, 1 - screen1Exit * 1.2),
-                pointerEvents: screen1Exit > 0.4 ? 'none' : 'auto',
-                visibility: screen1Exit >= 1 ? 'hidden' : 'visible',
-              }}
-            >
-              <HeroClothingRack
+            {/* Right: Interactive 3D Luxury Clothing Rack (Desktop) / Mobile Lite Showcase (Mobile) */}
+            {!isMobile ? (
+              <div
+                className="hero-3d-rack-container"
+                style={{
+                  opacity: Math.max(0, 1 - screen1Exit * 1.2),
+                  pointerEvents: screen1Exit > 0.4 ? 'none' : 'auto',
+                  visibility: screen1Exit >= 1 ? 'hidden' : 'visible',
+                }}
+              >
+                <Suspense fallback={null}>
+                  <HeroClothingRack
+                    categories={HANGER_CATEGORIES}
+                    activeCategory={activeCategory}
+                    onSelectCategory={(cat) => {
+                      setActiveCategory(cat.id)
+                      const el = document.getElementById('vault-drop')
+                      if (el) el.scrollIntoView({ behavior: 'smooth' })
+                    }}
+                    heroScrollFraction={heroScrollFraction}
+                  />
+                </Suspense>
+              </div>
+            ) : (
+              <MobileLiteShowcase
                 categories={HANGER_CATEGORIES}
                 activeCategory={activeCategory}
-                onSelectCategory={(cat) => {
-                  setActiveCategory(cat.id)
+                onSelectCategory={(catId) => {
+                  setActiveCategory(catId)
                   const el = document.getElementById('vault-drop')
                   if (el) el.scrollIntoView({ behavior: 'smooth' })
                 }}
-                heroScrollFraction={heroScrollFraction}
+                relics={relics}
+                onClaimRelic={handleClaimRelic}
+                cart={cart}
               />
-            </div>
+            )}
           </div>
 
-          {/* ================================================================
+          {/* Desktop Only: Scrubbed Story Screens & Telemetry */}
+          {!isMobile && (
+            <>
+              {/* ================================================================
               SCREEN 2: SECOND HERO STORY STAGE (Scroll Story Scrubbed Section)
               ================================================================ */}
           <div
@@ -1459,10 +1519,16 @@ export default function App() {
               <span className="material-symbols-outlined" style={{ fontSize: 16 }}>arrow_downward</span>
               <span>SCROLL TO ENTER ORBIT</span>
             </div>
-
           </div>
+            </>
+          )}
         </div>
       </section>
+
+      {/* Mobile Services Bar: Clean 1-Tap Concierge for Mobile Phones */}
+      {isMobile && (
+        <MobileServicesBar whatsappNumber={import.meta.env.VITE_WHATSAPP_CONCIERGE_NUMBER || '+919329993116'} />
+      )}
 
       {/* Marquee Ticker Transition into Catalog */}
       <div className="marquee-bar">
