@@ -1580,17 +1580,17 @@ export default function App() {
           >
             <div className="second-screen-badge">
               <span className="pulse-beacon" />
-              <span>✦ CUSTOMER SERVICES // FIRST DELIVERY FREE ✦</span>
+              <span>✦ CUSTOMER SERVICES // FREE DELIVERY OVER ₹599 ✦</span>
               <span className="star-icon">✦</span>
             </div>
 
             <h2 className="second-screen-heading">
               SERVICES &amp; SUPPORT <br />
-              <span className="italic-accent">WHATSAPP · INSTAGRAM · FIRST DELIVERY FREE</span>
+              <span className="italic-accent">WHATSAPP · INSTAGRAM · FREE DELIVERY OVER ₹599</span>
             </h2>
 
             <p className="second-screen-desc">
-              Have questions about sizing, fabric, or fit? Message us on WhatsApp or Instagram for quick help, live videos, and complimentary first delivery across India.
+              Have questions about sizing, fabric, or fit? Message us on WhatsApp or Instagram for quick help, live videos, and complimentary express delivery on orders over ₹599 across India.
             </p>
 
             {/* 4 Store Service & Client Concierge Cards */}
@@ -1641,19 +1641,19 @@ export default function App() {
                 </a>
               </div>
 
-              {/* Service 3: First Delivery Free Privilege */}
+              {/* Service 3: Free Delivery Over ₹599 */}
               <div className="second-screen-card">
                 <span className="card-code-tag">
                   <span className="material-symbols-outlined" style={{ fontSize: 16 }}>local_shipping</span>
                   <span>DELIVERY PROTOCOL</span>
                 </span>
-                <span className="card-title">First Delivery Free (₹120 Off)</span>
+                <span className="card-title">Free Delivery Over ₹599</span>
                 <span className="card-caption">
-                  Complimentary pan-India air express delivery on your first order. Flat ₹120 standard delivery on subsequent drops.
+                  Complimentary pan-India air express delivery on orders above ₹599. Flat ₹120 standard delivery for single items ₹599 or below.
                 </span>
                 <div className="card-info-chip">
                   <span className="material-symbols-outlined" style={{ fontSize: 13, color: '#16a34a' }}>check_circle</span>
-                  <span>0% Delivery Fee on 1st Order</span>
+                  <span>Free Express Delivery on ₹599+</span>
                 </div>
               </div>
 
@@ -2099,7 +2099,7 @@ export default function App() {
                 </h5>
                 <ul className="footer-links-list">
                   <li><a href={`https://wa.me/${activeWhatsappClean}`} target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'none' }}>WhatsApp Help ({activeWhatsappNumber})</a></li>
-                  <li>First Delivery Free (₹120 Flat)</li>
+                  <li>Free Delivery on Orders &gt; ₹599 (₹120 Standard)</li>
                   <li>Sizing &amp; Fit Guide</li>
                   <li>Return &amp; Exchange Policy</li>
                 </ul>
@@ -2142,7 +2142,7 @@ export default function App() {
             </span>
             <div style={{ display: 'flex', gap: 20, alignItems: 'center' }}>
               <span>PAN-INDIA FAST DELIVERY</span>
-              <span>FIRST DELIVERY FREE (₹120 STANDARD)</span>
+              <span>FREE DELIVERY OVER ₹599 (₹120 STANDARD)</span>
               <span>TERMS &amp; PRIVACY</span>
             </div>
           </div>

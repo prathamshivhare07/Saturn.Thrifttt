@@ -31,14 +31,11 @@ export default function CheckoutModal({
   const [upiUtrNumber, setUpiUtrNumber] = useState('')
   const [copiedVpa, setCopiedVpa] = useState(false)
 
-  // Delivery Charges & First Order Free Logic
+  // Delivery Fee Protocol: Free Delivery on orders > ₹599, else standard ₹120 flat fee
   const standardDeliveryFee = Number(storeSettings?.deliveryFee ?? 120)
-  const hasPriorOrders = Boolean(
-    (currentUser?.orders && currentUser.orders.length > 0) ||
-    (typeof window !== 'undefined' && localStorage.getItem('saturn_customer_has_ordered') === 'true')
-  )
-  const isFirstOrder = !hasPriorOrders
-  const deliveryFee = isFirstOrder ? 0 : standardDeliveryFee
+  const FREE_DELIVERY_THRESHOLD = 599
+  const isFreeDelivery = cartTotal > FREE_DELIVERY_THRESHOLD
+  const deliveryFee = isFreeDelivery ? 0 : standardDeliveryFee
 
   // Promo Code / Coupon Offer State
   const [couponCode, setCouponCode] = useState('')
@@ -80,8 +77,13 @@ export default function CheckoutModal({
 
   // Process payment submission
   const handlePayNow = () => {
-    if (!upiUtrNumber || upiUtrNumber.length < 6) {
-      setErrorMessage('Please enter your 12-digit UPI Bank UTR / Reference ID from your payment receipt.')
+    const cleanUtr = (upiUtrNumber || '').trim().replace(/\D/g, '')
+    if (!cleanUtr) {
+      setErrorMessage('Please enter the 12-digit UPI Bank UTR / Reference number from your payment app receipt.')
+      return
+    }
+    if (cleanUtr.length !== 12) {
+      setErrorMessage(`Invalid Bank UTR: Reference ID must be exactly 12 digits (you entered ${cleanUtr.length} digits). Check your Google Pay / PhonePe / Paytm / BHIM payment receipt.`)
       return
     }
 
@@ -98,10 +100,10 @@ export default function CheckoutModal({
         discount: discountAmount,
         couponCode: appliedCoupon?.code || null,
         deliveryFee: deliveryFee,
-        isFirstOrder: isFirstOrder,
+        isFreeDelivery: isFreeDelivery,
         total: finalTotal,
         paymentRail: 'Instant Sovereign UPI (0% Fee)',
-        utrNumber: upiUtrNumber,
+        utrNumber: cleanUtr,
         shipping: shippingData,
         status: 'Paid & Authenticated via YouPI-PG (0% Fee) // Dispatched',
       }
@@ -289,15 +291,20 @@ export default function CheckoutModal({
 
                 <div className="manifest-row">
                   <span>Express Air Delivery:</span>
-                  {isFirstOrder ? (
+                  {isFreeDelivery ? (
                     <span>
                       <span style={{ textDecoration: 'line-through', color: 'var(--outline)', marginRight: 6 }}>
                         ₹{standardDeliveryFee}
                       </span>
-                      <strong style={{ color: '#16a34a' }}>FREE (First Order Privilege ✦)</strong>
+                      <strong style={{ color: '#16a34a' }}>FREE (Orders &gt; ₹599 ✦)</strong>
                     </span>
                   ) : (
-                    <span style={{ fontWeight: 700 }}>₹{standardDeliveryFee}</span>
+                    <span>
+                      <span style={{ fontWeight: 700 }}>₹{standardDeliveryFee}</span>
+                      <span style={{ fontSize: 9.5, color: 'var(--outline)', marginLeft: 6 }}>
+                        (Free on ₹599+ · Add ₹{Math.max(0, FREE_DELIVERY_THRESHOLD - cartTotal + 1)} more)
+                      </span>
+                    </span>
                   )}
                 </div>
 
@@ -438,19 +445,35 @@ export default function CheckoutModal({
 
                   {/* 12-Digit Bank UTR Input */}
                   <div className="checkout-field-group" style={{ marginTop: 14 }}>
-                    <div className="checkout-field-label-row">
+                    <div className="checkout-field-label-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <label htmlFor="chk-utr">12-Digit Bank UTR / Reference ID</label>
+                      <span style={{
+                        fontSize: 10,
+                        fontFamily: 'var(--font-mono)',
+                        fontWeight: 700,
+                        color: upiUtrNumber.length === 12 ? '#16a34a' : 'var(--outline)',
+                      }}>
+                        {upiUtrNumber.length}/12 DIGITS {upiUtrNumber.length === 12 ? '✓ READY' : ''}
+                      </span>
                     </div>
                     <input
                       id="chk-utr"
                       type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
                       maxLength={12}
                       placeholder="e.g. 430198234812 (from UPI app transaction receipt)"
                       value={upiUtrNumber}
                       onChange={(e) => setUpiUtrNumber(e.target.value.replace(/\D/g, ''))}
+                      style={{
+                        letterSpacing: '0.12em',
+                        fontFamily: 'var(--font-mono)',
+                        fontWeight: 700,
+                        borderColor: upiUtrNumber.length === 12 ? '#16a34a' : undefined,
+                      }}
                     />
-                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9.5, color: 'var(--on-surface-variant)' }}>
-                      YouPI-PG verifies this 12-digit bank reference with incoming account credits to confirm your order instantly with 0% platform fee.
+                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9.5, color: 'var(--on-surface-variant)', lineHeight: 1.4 }}>
+                      💡 Where to find: Open your UPI app (GPay / PhonePe / Paytm / BHIM) &gt; Tap "Completed Payment" &gt; Copy the 12-digit <strong>UPI Ref No. / UTR</strong>.
                     </span>
                   </div>
                 </div>
@@ -522,12 +545,12 @@ export default function CheckoutModal({
                 )}
                 <div className="manifest-row">
                   <span>Pan-India Delivery:</span>
-                  {isFirstOrder ? (
+                  {isFreeDelivery ? (
                     <span style={{ color: '#16a34a', fontWeight: 700 }}>
                       <span style={{ textDecoration: 'line-through', color: 'var(--outline)', marginRight: 4 }}>
                         ₹{standardDeliveryFee}
                       </span>
-                      FREE (1st Order ✦)
+                      FREE (&gt; ₹599 ✦)
                     </span>
                   ) : (
                     <span style={{ fontWeight: 700 }}>₹{standardDeliveryFee}</span>
@@ -601,7 +624,7 @@ export default function CheckoutModal({
               <div className="table-row">
                 <span>Pan-India Air Express Delivery:</span>
                 <span style={{ color: completedOrder.deliveryFee === 0 ? '#16a34a' : 'inherit', fontWeight: completedOrder.deliveryFee === 0 ? 700 : 'normal' }}>
-                  {completedOrder.deliveryFee === 0 ? 'FREE (First Order Privilege ✦)' : `₹${completedOrder.deliveryFee}`}
+                  {completedOrder.deliveryFee === 0 ? 'FREE (Orders > ₹599 Privilege ✦)' : `₹${completedOrder.deliveryFee}`}
                 </span>
               </div>
               <div className="table-footer-row">

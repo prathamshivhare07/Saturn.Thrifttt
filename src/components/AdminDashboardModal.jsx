@@ -1857,8 +1857,8 @@ export default function AdminDashboardModal({
                               <div className="dossier-fee-row">
                                 <span>Pan-India Delivery Fee:</span>
                                 <strong>
-                                  {selectedOrder.deliveryFee === 0 || selectedOrder.isFirstOrder
-                                    ? 'FREE (1st Order Privilege ✦)'
+                                  {selectedOrder.deliveryFee === 0 || selectedOrder.isFreeDelivery
+                                    ? 'FREE (Orders > ₹599 ✦)'
                                     : `₹${selectedOrder.deliveryFee || 120}`}
                                 </strong>
                               </div>
@@ -2006,7 +2006,7 @@ export default function AdminDashboardModal({
                     </div>
 
                     <div className="admin-form-field">
-                      <label>Standard Delivery Fee (₹) [1st Order Free]</label>
+                      <label>Standard Delivery Fee (₹) [Free on Orders &gt; ₹599]</label>
                       <input
                         type="number"
                         min={0}
@@ -2016,6 +2016,9 @@ export default function AdminDashboardModal({
                         placeholder="120"
                         required
                       />
+                      <span style={{ fontSize: 10, color: 'var(--outline)', marginTop: 4, display: 'block', fontFamily: 'var(--font-mono)' }}>
+                        Orders with item value &gt; ₹599 get FREE delivery. Orders ₹599 or below charge this standard delivery fee (default: ₹120).
+                      </span>
                     </div>
 
                     <div className="admin-form-field full-width">

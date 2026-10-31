@@ -102,7 +102,7 @@ export function MobileLiteShowcase({
         </div>
         <div className="trust-item">
           <span className="material-symbols-outlined">local_shipping</span>
-          <span>1st Delivery Free</span>
+          <span>Free Delivery &gt; ₹599</span>
         </div>
         <div className="trust-item">
           <span className="material-symbols-outlined">bolt</span>
