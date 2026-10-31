@@ -273,6 +273,29 @@ const DEFAULT_STORE_SETTINGS = {
   instagramHandle: '@saturn.thrifttt',
 }
 
+export function safeSetLocalStorage(key, value) {
+  try {
+    localStorage.setItem(key, value)
+  } catch (err) {
+    console.warn(`[STORAGE] localStorage quota warning for "${key}":`, err)
+    if (key === 'saturn_vault_relics') {
+      try {
+        const parsed = JSON.parse(value)
+        // Store lightweight versions without heavy multi-image base64 to protect 5MB quota
+        // Supabase cloud is the permanent infinite store for full multi-photo galleries
+        const lightRelics = parsed.map((r) => ({
+          ...r,
+          desc: (r.desc || '').replace(/<!--VAULT_IMAGES_JSON:.*?-->/g, '').trim(),
+          images: r.img ? [r.img] : [],
+        }))
+        localStorage.setItem(key, JSON.stringify(lightRelics))
+      } catch (innerErr) {
+        console.warn('[STORAGE] Could not write light relics to localStorage:', innerErr)
+      }
+    }
+  }
+}
+
 function RelicCardItem({ relic, inCart, onClaim }) {
   const [activePhotoIdx, setActivePhotoIdx] = useState(0)
   const isSold = Boolean(relic.isSold)
@@ -487,8 +510,12 @@ export default function App() {
 
   const handleUpdateRelics = (newRelics) => {
     setRelics(newRelics)
-    localStorage.setItem('saturn_vault_relics', JSON.stringify(newRelics))
-    syncAllRelicsToRemote(newRelics)
+    safeSetLocalStorage('saturn_vault_relics', JSON.stringify(newRelics))
+    try {
+      syncAllRelicsToRemote(newRelics)
+    } catch (e) {
+      console.warn('[SUPABASE] Batch sync error:', e)
+    }
   }
 
   const [announcementBanner, setAnnouncementBanner] = useState(() => {
@@ -672,7 +699,7 @@ export default function App() {
           const remoteIds = new Set(remoteRelics.map((r) => r.id))
           const missing = prev.filter((r) => !remoteIds.has(r.id))
           const merged = [...remoteRelics, ...missing]
-          localStorage.setItem('saturn_vault_relics', JSON.stringify(merged))
+          safeSetLocalStorage('saturn_vault_relics', JSON.stringify(merged))
           return merged
         })
       } else if (remoteRelics && remoteRelics.length === 0) {

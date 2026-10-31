@@ -1,10 +1,15 @@
 import { useState, useEffect } from 'react'
-import { deleteRemoteRelic, insertRemoteOrder, syncSingleRelicToRemote } from '../lib/supabase'
+import {
+  deleteRemoteRelic,
+  insertRemoteOrder,
+  syncSingleRelicToRemote,
+  updateRemoteRelicSoldStatus,
+} from '../lib/supabase'
 
 export const FALLBACK_RELIC_IMG = 'https://lh3.googleusercontent.com/aida-public/AB6AXuBpMwMxh5Dfy-4OXiZB9iIedGEl9ZyTLWyayX6rhafm2EvBgYqGNmVvDcNqnRwoHWfLY2Yn5sfvNNoCG5JVgamSUfXtvPtoL1vXdOBFbJmfsktcjarJTA2aAcd19WCO4h08SyFQZAbFqQ5pTgAAOHVHD9-0vFr3SdHzveYB2ElCzQtFVvHmjqWbZZNQyaB4cIxXyQcxu_-oJYsZe9waOqqnBn1blc2eSnJIjMoLjQA'
 
-// Compress and downscale uploaded photo to keep payload light (~40KB) and preserve quality
-function compressImage(file, maxWidth = 900, maxHeight = 900, quality = 0.75) {
+// Compress and downscale uploaded photo to keep payload light (~18KB) and preserve quality
+function compressImage(file, maxWidth = 720, maxHeight = 720, quality = 0.68) {
   return new Promise((resolve) => {
     if (!file) return resolve('')
     if (file.type === 'image/svg+xml') {
@@ -269,7 +274,7 @@ export default function AdminDashboardModal({
   }
 
   // Publish New Drop to Live Store
-  const handlePublishRelic = (e) => {
+  const handlePublishRelic = async (e) => {
     e.preventDefault()
     if (!newRelic.title || !newRelic.price) {
       alert('Please provide at least a title and price.')
@@ -295,9 +300,12 @@ export default function AdminDashboardModal({
       barcode: `BARCODE: |||| |||| ${Math.floor(100 + Math.random() * 900)}`,
     }
 
+    // 1. Sync directly to Supabase cloud FIRST so it is safely saved permanently!
+    await syncSingleRelicToRemote(createdRelic)
+
+    // 2. Update React state and local storage
     const updated = [createdRelic, ...relics]
     onUpdateRelics(updated)
-    syncSingleRelicToRemote(createdRelic)
 
     setFormSuccess(`✦ Success! "${newRelic.title}" published to live store catalog with ${createdRelic.images.length} photos.`)
     setTimeout(() => setFormSuccess(''), 4000)
@@ -410,7 +418,7 @@ export default function AdminDashboardModal({
     })
   }
 
-  const handleSaveEditedRelic = (e) => {
+  const handleSaveEditedRelic = async (e) => {
     e.preventDefault()
     if (!editingRelic.title || !editingRelic.price) {
       alert('Please provide at least a title and price.')
@@ -429,9 +437,12 @@ export default function AdminDashboardModal({
       price: Number(editingRelic.price),
     }
 
+    // 1. Sync directly to Supabase cloud FIRST!
+    await syncSingleRelicToRemote(updatedRelic)
+
+    // 2. Update React state and local storage
     const updated = relics.map((r) => (r.id === updatedRelic.id ? updatedRelic : r))
     onUpdateRelics(updated)
-    syncSingleRelicToRemote(updatedRelic)
 
     setFormSuccess(`✦ Success! "${updatedRelic.title}" updated in live vault catalog with ${updatedRelic.images.length} photos.`)
     setTimeout(() => setFormSuccess(''), 4000)
@@ -562,17 +573,21 @@ export default function AdminDashboardModal({
   }
 
   // Toggle Relic Sold Status
-  const handleToggleSold = (id) => {
-    const updated = relics.map((r) => (r.id === id ? { ...r, isSold: !r.isSold } : r))
+  const handleToggleSold = async (id) => {
+    const target = relics.find((r) => r.id === id)
+    if (!target) return
+    const newSoldState = !target.isSold
+    await updateRemoteRelicSoldStatus(id, newSoldState)
+    const updated = relics.map((r) => (r.id === id ? { ...r, isSold: newSoldState } : r))
     onUpdateRelics(updated)
   }
 
   // Delete Relic
-  const handleDeleteRelic = (id, title) => {
+  const handleDeleteRelic = async (id, title) => {
     if (window.confirm(`Delete "${title}" from the live vault catalog?`)) {
+      await deleteRemoteRelic(id)
       const updated = relics.filter((r) => r.id !== id)
       onUpdateRelics(updated)
-      deleteRemoteRelic(id)
     }
   }
 

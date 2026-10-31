@@ -93,7 +93,7 @@ export async function fetchRemoteRelics() {
 }
 
 export async function syncSingleRelicToRemote(r) {
-  if (!isSupabaseConfigured || !supabase || !r?.id) return
+  if (!isSupabaseConfigured || !supabase || !r?.id) return { error: null }
   try {
     const allImages = (Array.isArray(r.images) && r.images.length > 0
       ? r.images
@@ -124,8 +124,10 @@ export async function syncSingleRelicToRemote(r) {
 
     const { error } = await supabase.from('relics').upsert([row], { onConflict: 'id' })
     if (error) console.error('[SUPABASE] Upsert single relic error:', error.message)
+    return { error }
   } catch (err) {
     console.error('[SUPABASE] Error syncing single relic:', err)
+    return { error: err }
   }
 }
 
@@ -161,8 +163,13 @@ export async function syncAllRelicsToRemote(relics) {
       }
     })
 
-    const { error } = await supabase.from('relics').upsert(dbRows, { onConflict: 'id' })
-    if (error) console.error('[SUPABASE] Upsert relics error:', error.message)
+    // Upsert in safe batches of 3 to stay well within Supabase payload limits
+    const CHUNK = 3
+    for (let i = 0; i < dbRows.length; i += CHUNK) {
+      const chunk = dbRows.slice(i, i + CHUNK)
+      const { error } = await supabase.from('relics').upsert(chunk, { onConflict: 'id' })
+      if (error) console.warn('[SUPABASE] Chunk upsert warning:', error.message)
+    }
   } catch (err) {
     console.error('[SUPABASE] Error syncing relics:', err)
   }
