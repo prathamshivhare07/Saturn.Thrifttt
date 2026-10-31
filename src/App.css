@@ -5509,6 +5509,286 @@
   cursor: pointer;
 }
 
+/* Multi-Photo Manager Grid in Admin Dashboard */
+.admin-photo-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+  gap: 10px;
+  background: var(--surface-container-low);
+  padding: 10px;
+  border: 1.5px solid var(--outline-variant);
+  margin-bottom: 8px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.admin-photo-thumb-card {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1;
+  border: 1.5px solid var(--outline);
+  background: #000;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.admin-photo-thumb-card.is-cover {
+  border: 2px solid var(--primary);
+  box-shadow: 0 0 0 1px var(--primary);
+}
+
+.admin-photo-thumb-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.badge-cover-photo {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  background: var(--primary);
+  color: #fff;
+  font-family: var(--font-mono);
+  font-size: 8px;
+  font-weight: 800;
+  padding: 2px 5px;
+  letter-spacing: 0.05em;
+  border: 1px solid #000;
+  box-shadow: 1px 1px 0 #000;
+}
+
+.btn-set-cover {
+  position: absolute;
+  bottom: 4px;
+  left: 4px;
+  background: rgba(0, 0, 0, 0.75);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  font-family: var(--font-mono);
+  font-size: 8px;
+  font-weight: 700;
+  padding: 2px 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-set-cover:hover {
+  background: var(--primary);
+  color: #fff;
+  border-color: #000;
+}
+
+.btn-delete-photo {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 20px;
+  height: 20px;
+  background: rgba(220, 38, 38, 0.9);
+  color: #fff;
+  border: 1px solid #000;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border-radius: 2px;
+  transition: all 0.15s ease;
+}
+
+.btn-delete-photo:hover {
+  background: #b91c1c;
+  transform: scale(1.1);
+}
+
+.admin-empty-photo-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 24px;
+  border: 1.5px dashed var(--outline);
+  background: var(--surface-container-low);
+  text-align: center;
+  margin-bottom: 8px;
+}
+
+.admin-photo-actions-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin-top: 6px;
+}
+
+.btn-add-photos-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  background: var(--surface-container);
+  border: 1.5px solid var(--on-surface);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--on-surface);
+  cursor: pointer;
+  box-shadow: 2px 2px 0 var(--on-surface);
+  transition: all 0.12s ease;
+}
+
+.btn-add-photos-label:hover {
+  background: var(--primary);
+  color: #fff;
+  transform: translate(-1px, -1px);
+  box-shadow: 3px 3px 0 var(--on-surface);
+}
+
+.admin-url-add-box {
+  display: flex;
+  flex: 1;
+  min-width: 220px;
+  gap: 6px;
+}
+
+.btn-add-url {
+  padding: 7px 12px;
+  background: var(--surface-variant);
+  border: 1px solid var(--outline);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--on-surface);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.btn-add-url:hover {
+  background: var(--primary);
+  color: #fff;
+}
+
+.admin-relic-photos-count {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  background: var(--surface-container);
+  border: 1px solid var(--outline-variant);
+  padding: 1px 6px;
+  color: var(--on-surface-variant);
+}
+
+/* Product Card Photo Carousel / Badges */
+.recent-drop-photos-badge {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  background: rgba(0, 0, 0, 0.75);
+  color: #fff;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 2px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.relic-photos-counter-pill {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(4px);
+  color: #fff;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 700;
+  padding: 3px 7px;
+  border-radius: 2px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  z-index: 3;
+}
+
+.relic-photo-arrows {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  transform: translateY(-50%);
+  display: flex;
+  justify-content: space-between;
+  padding: 0 6px;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  pointer-events: none;
+  z-index: 4;
+}
+
+.relic-image-wrap:hover .relic-photo-arrows {
+  opacity: 1;
+}
+
+.relic-photo-arrow-btn {
+  pointer-events: auto;
+  width: 28px;
+  height: 28px;
+  background: rgba(0, 0, 0, 0.7);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  font-size: 18px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border-radius: 2px;
+  transition: background 0.15s ease;
+}
+
+.relic-photo-arrow-btn:hover {
+  background: var(--primary);
+  border-color: #000;
+}
+
+.relic-photo-dots {
+  position: absolute;
+  bottom: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 5px;
+  z-index: 4;
+  background: rgba(0, 0, 0, 0.5);
+  padding: 3px 6px;
+  border-radius: 10px;
+}
+
+.relic-photo-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.4);
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.relic-photo-dot.active {
+  background: var(--primary);
+  transform: scale(1.3);
+}
+
 .btn-admin-publish {
   grid-column: 1 / -1;
   margin-top: 10px;

@@ -1,6 +1,55 @@
 import { useState, useEffect } from 'react'
 import { deleteRemoteRelic, insertRemoteOrder } from '../lib/supabase'
 
+export const FALLBACK_RELIC_IMG = 'https://lh3.googleusercontent.com/aida-public/AB6AXuBpMwMxh5Dfy-4OXiZB9iIedGEl9ZyTLWyayX6rhafm2EvBgYqGNmVvDcNqnRwoHWfLY2Yn5sfvNNoCG5JVgamSUfXtvPtoL1vXdOBFbJmfsktcjarJTA2aAcd19WCO4h08SyFQZAbFqQ5pTgAAOHVHD9-0vFr3SdHzveYB2ElCzQtFVvHmjqWbZZNQyaB4cIxXyQcxu_-oJYsZe9waOqqnBn1blc2eSnJIjMoLjQA'
+
+// Compress and downscale uploaded photo to keep payload light (~50KB) and preserve quality
+function compressImage(file, maxWidth = 1000, maxHeight = 1000, quality = 0.82) {
+  return new Promise((resolve) => {
+    if (!file) return resolve('')
+    if (file.type === 'image/svg+xml') {
+      const reader = new FileReader()
+      reader.onload = (e) => resolve(e.target?.result || '')
+      reader.readAsDataURL(file)
+      return
+    }
+
+    const reader = new FileReader()
+    reader.onload = (event) => {
+      const img = new Image()
+      img.onload = () => {
+        let width = img.width
+        let height = img.height
+
+        if (width > height) {
+          if (width > maxWidth) {
+            height = Math.round((height * maxWidth) / width)
+            width = maxWidth
+          }
+        } else {
+          if (height > maxHeight) {
+            width = Math.round((width * maxHeight) / height)
+            height = maxHeight
+          }
+        }
+
+        const canvas = document.createElement('canvas')
+        canvas.width = width
+        canvas.height = height
+        const ctx = canvas.getContext('2d')
+        ctx.drawImage(img, 0, 0, width, height)
+
+        const compressedDataUrl = canvas.toDataURL('image/jpeg', quality)
+        resolve(compressedDataUrl)
+      }
+      img.onerror = () => resolve(event.target?.result || '')
+      img.src = event.target?.result
+    }
+    reader.onerror = () => resolve('')
+    reader.readAsDataURL(file)
+  })
+}
+
 export default function AdminDashboardModal({
   isOpen,
   onClose,
@@ -40,14 +89,18 @@ export default function AdminDashboardModal({
     measurements: 'P2P: 22.5" // LEN: 28.5"',
     desc: 'Authentic 90s vintage garment. Hand-inspected, sun-faded organic patina, single stitch intact.',
     img: '',
+    images: [],
     isSold: false,
   })
-  const [imagePreview, setImagePreview] = useState('')
+  const [newRelicImages, setNewRelicImages] = useState([])
+  const [newUrlInput, setNewUrlInput] = useState('')
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false)
   const [formSuccess, setFormSuccess] = useState('')
 
   // Relic Editing State (Addon to edit already uploaded articles)
   const [editingRelic, setEditingRelic] = useState(null)
-  const [editImagePreview, setEditImagePreview] = useState('')
+  const [editRelicImages, setEditRelicImages] = useState([])
+  const [editUrlInput, setEditUrlInput] = useState('')
 
   // Order Search & Filter State
   const [orderSearch, setOrderSearch] = useState('')
@@ -131,18 +184,87 @@ export default function AdminDashboardModal({
     sessionStorage.removeItem('saturn_admin_auth')
   }
 
-  // Handle local photo file upload & convert to DataURL
-  const handlePhotoUpload = (e) => {
-    const file = e.target.files?.[0]
-    if (file) {
-      const reader = new FileReader()
-      reader.onload = (event) => {
-        const dataUrl = event.target?.result
-        setImagePreview(dataUrl)
-        setNewRelic((prev) => ({ ...prev, img: dataUrl }))
-      }
-      reader.readAsDataURL(file)
+  // Handle multi-photo file upload for new relic with client-side compression
+  const handlePhotoUpload = async (e) => {
+    const files = Array.from(e.target.files || [])
+    if (!files.length) return
+    setIsUploadingPhoto(true)
+    try {
+      const compressedList = await Promise.all(files.map((f) => compressImage(f)))
+      const valid = compressedList.filter(Boolean)
+      setNewRelicImages((prev) => {
+        const combined = [...prev, ...valid]
+        setNewRelic((p) => ({
+          ...p,
+          img: combined[0] || p.img || '',
+          images: combined,
+        }))
+        return combined
+      })
+    } finally {
+      setIsUploadingPhoto(false)
+      e.target.value = ''
     }
+  }
+
+  const handleAddNewUrl = () => {
+    if (!newUrlInput.trim()) return
+    const url = newUrlInput.trim()
+    setNewRelicImages((prev) => {
+      const combined = [...prev, url]
+      setNewRelic((p) => ({
+        ...p,
+        img: combined[0] || p.img || '',
+        images: combined,
+      }))
+      return combined
+    })
+    setNewUrlInput('')
+  }
+
+  const handleRemoveNewPhoto = (index) => {
+    setNewRelicImages((prev) => {
+      const updated = prev.filter((_, i) => i !== index)
+      setNewRelic((p) => ({
+        ...p,
+        img: updated[0] || '',
+        images: updated,
+      }))
+      return updated
+    })
+  }
+
+  const handleSetCoverNewPhoto = (index) => {
+    setNewRelicImages((prev) => {
+      if (index === 0) return prev
+      const target = prev[index]
+      const rest = prev.filter((_, i) => i !== index)
+      const updated = [target, ...rest]
+      setNewRelic((p) => ({
+        ...p,
+        img: target,
+        images: updated,
+      }))
+      return updated
+    })
+  }
+
+  // Smart Category Auto-Detection when typing piece title
+  const handleTitleChange = (title) => {
+    const lower = title.toLowerCase()
+    let detectedCat = newRelic.category
+    if (lower.includes('jacket') || lower.includes('coat') || lower.includes('windcheater') || lower.includes('bomber') || lower.includes('parka')) {
+      detectedCat = 'jackets'
+    } else if (lower.includes('denim') || lower.includes('jean') || lower.includes('501') || lower.includes('pant') || lower.includes('wrangler')) {
+      detectedCat = 'denim'
+    } else if (lower.includes('knit') || lower.includes('vest') || lower.includes('sweater') || lower.includes('cardigan')) {
+      detectedCat = 'knits'
+    } else if (lower.includes('hoodie') || lower.includes('fleece') || lower.includes('sweatshirt')) {
+      detectedCat = 'hoodies'
+    } else if (lower.includes('tee') || lower.includes('shirt') || lower.includes('band')) {
+      detectedCat = 'tees'
+    }
+    setNewRelic((prev) => ({ ...prev, title, category: detectedCat }))
   }
 
   // Publish New Drop to Live Store
@@ -153,12 +275,14 @@ export default function AdminDashboardModal({
       return
     }
 
-    const fallbackImg = imagePreview || newRelic.img || 'https://lh3.googleusercontent.com/aida-public/AB6AXuBpMwMxh5Dfy-4OXiZB9iIedGEl9ZyTLWyayX6rhafm2EvBgYqGNmVvDcNqnRwoHWfLY2Yn5sfvNNoCG5JVgamSUfXtvPtoL1vXdOBFbJmfsktcjarJTA2aAcd19WCO4h08SyFQZAbFqQ5pTgAAOHVHD9-0vFr3SdHzveYB2ElCzQtFVvHmjqWbZZNQyaB4cIxXyQcxu_-oJYsZe9waOqqnBn1blc2eSnJIjMoLjQA'
+    const allImgs = newRelicImages.length > 0 ? newRelicImages : (newRelic.img ? [newRelic.img] : [])
+    const primaryImg = allImgs[0] || FALLBACK_RELIC_IMG
 
     const createdRelic = {
       id: `relic-${Date.now()}`,
       ...newRelic,
-      img: fallbackImg,
+      img: primaryImg,
+      images: allImgs.length > 0 ? allImgs : [primaryImg],
       price: Number(newRelic.price),
       barcode: `BARCODE: |||| |||| ${Math.floor(100 + Math.random() * 900)}`,
     }
@@ -166,7 +290,7 @@ export default function AdminDashboardModal({
     const updated = [createdRelic, ...relics]
     onUpdateRelics(updated)
 
-    setFormSuccess(`✦ Success! "${newRelic.title}" published to live store catalog.`)
+    setFormSuccess(`✦ Success! "${newRelic.title}" published to live store catalog with ${createdRelic.images.length} photos.`)
     setTimeout(() => setFormSuccess(''), 4000)
 
     // Reset Form with next Lot
@@ -181,36 +305,93 @@ export default function AdminDashboardModal({
       measurements: 'P2P: 22.5" // LEN: 28.5"',
       desc: 'Authentic 90s vintage garment. Hand-inspected, sun-faded organic patina, single stitch intact.',
       img: '',
+      images: [],
       isSold: false,
     })
-    setImagePreview('')
+    setNewRelicImages([])
+    setNewUrlInput('')
   }
 
   // ============================================================
   // EDIT EXISTING RELIC HANDLERS
   // ============================================================
   const handleStartEdit = (relic) => {
-    setEditingRelic({ ...relic })
-    setEditImagePreview(relic.img || '')
+    const images = Array.isArray(relic.images) && relic.images.length > 0
+      ? [...relic.images]
+      : (relic.img ? [relic.img] : [])
+    setEditingRelic({ ...relic, images })
+    setEditRelicImages(images)
     setActiveTab('inventory')
   }
 
   const handleCancelEdit = () => {
     setEditingRelic(null)
-    setEditImagePreview('')
+    setEditRelicImages([])
+    setEditUrlInput('')
   }
 
-  const handleEditPhotoUpload = (e) => {
-    const file = e.target.files?.[0]
-    if (file) {
-      const reader = new FileReader()
-      reader.onload = (event) => {
-        const dataUrl = event.target?.result
-        setEditImagePreview(dataUrl)
-        setEditingRelic((prev) => ({ ...prev, img: dataUrl }))
-      }
-      reader.readAsDataURL(file)
+  const handleEditPhotoUpload = async (e) => {
+    const files = Array.from(e.target.files || [])
+    if (!files.length) return
+    setIsUploadingPhoto(true)
+    try {
+      const compressedList = await Promise.all(files.map((f) => compressImage(f)))
+      const valid = compressedList.filter(Boolean)
+      setEditRelicImages((prev) => {
+        const combined = [...prev, ...valid]
+        setEditingRelic((p) => ({
+          ...p,
+          img: combined[0] || p.img || '',
+          images: combined,
+        }))
+        return combined
+      })
+    } finally {
+      setIsUploadingPhoto(false)
+      e.target.value = ''
     }
+  }
+
+  const handleAddEditUrl = () => {
+    if (!editUrlInput.trim()) return
+    const url = editUrlInput.trim()
+    setEditRelicImages((prev) => {
+      const combined = [...prev, url]
+      setEditingRelic((p) => ({
+        ...p,
+        img: combined[0] || p.img || '',
+        images: combined,
+      }))
+      return combined
+    })
+    setEditUrlInput('')
+  }
+
+  const handleRemoveEditPhoto = (index) => {
+    setEditRelicImages((prev) => {
+      const updated = prev.filter((_, i) => i !== index)
+      setEditingRelic((p) => ({
+        ...p,
+        img: updated[0] || '',
+        images: updated,
+      }))
+      return updated
+    })
+  }
+
+  const handleSetCoverEditPhoto = (index) => {
+    setEditRelicImages((prev) => {
+      if (index === 0) return prev
+      const target = prev[index]
+      const rest = prev.filter((_, i) => i !== index)
+      const updated = [target, ...rest]
+      setEditingRelic((p) => ({
+        ...p,
+        img: target,
+        images: updated,
+      }))
+      return updated
+    })
   }
 
   const handleSaveEditedRelic = (e) => {
@@ -220,20 +401,25 @@ export default function AdminDashboardModal({
       return
     }
 
+    const allImgs = editRelicImages.length > 0 ? editRelicImages : (editingRelic.img ? [editingRelic.img] : [])
+    const primaryImg = allImgs[0] || FALLBACK_RELIC_IMG
+
     const updatedRelic = {
       ...editingRelic,
-      img: editImagePreview || editingRelic.img,
+      img: primaryImg,
+      images: allImgs.length > 0 ? allImgs : [primaryImg],
       price: Number(editingRelic.price),
     }
 
     const updated = relics.map((r) => (r.id === updatedRelic.id ? updatedRelic : r))
     onUpdateRelics(updated)
 
-    setFormSuccess(`✦ Success! "${updatedRelic.title}" updated in live vault catalog.`)
+    setFormSuccess(`✦ Success! "${updatedRelic.title}" updated in live vault catalog with ${updatedRelic.images.length} photos.`)
     setTimeout(() => setFormSuccess(''), 4000)
 
     setEditingRelic(null)
-    setEditImagePreview('')
+    setEditRelicImages([])
+    setEditUrlInput('')
   }
 
   // ============================================================
@@ -570,47 +756,102 @@ export default function AdminDashboardModal({
                       {formSuccess && <div className="admin-alert-success">{formSuccess}</div>}
 
                       <form onSubmit={handleSaveEditedRelic} className="admin-form-grid">
-                        {/* Photo Edit Area with Live Preview */}
+                        {/* Multi-Photo Management for Edit Mode */}
                         <div className="admin-form-field full-width">
-                          <label>Relic Product Photograph</label>
-                          <div className="admin-photo-dropzone">
-                            {editImagePreview || editingRelic.img ? (
-                              <div className="admin-preview-box">
-                                <img src={editImagePreview || editingRelic.img} alt="Preview" className="admin-preview-img" />
-                                <button
-                                  type="button"
-                                  className="btn-remove-preview"
-                                  onClick={() => {
-                                    setEditImagePreview('')
-                                    setEditingRelic((p) => ({ ...p, img: '' }))
-                                  }}
-                                >
-                                  ✕ Change Photo
-                                </button>
-                              </div>
-                            ) : (
-                              <label className="dropzone-label">
-                                <span className="material-symbols-outlined" style={{ fontSize: 32, color: 'var(--primary)' }}>
-                                  cloud_upload
-                                </span>
-                                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 700 }}>
-                                  Click to Select New Photo
-                                </span>
-                                <input type="file" accept="image/*" onChange={handleEditPhotoUpload} style={{ display: 'none' }} />
-                              </label>
-                            )}
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                            <label style={{ margin: 0, fontWeight: 700 }}>
+                              Relic Photo Gallery ({editRelicImages.length} {editRelicImages.length === 1 ? 'photo' : 'photos'})
+                            </label>
+                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--on-surface-variant)' }}>
+                              First photo is the Cover / Feed image
+                            </span>
                           </div>
-                          <div style={{ marginTop: 6 }}>
-                            <input
-                              type="text"
-                              placeholder="...or paste image URL (https://...)"
-                              value={editingRelic.img}
-                              onChange={(e) => {
-                                setEditingRelic({ ...editingRelic, img: e.target.value })
-                                setEditImagePreview(e.target.value)
-                              }}
-                              className="admin-input-compact"
-                            />
+
+                          {/* Thumbnails Grid */}
+                          {editRelicImages.length > 0 ? (
+                            <div className="admin-photo-grid">
+                              {editRelicImages.map((imgSrc, idx) => (
+                                <div key={idx} className={`admin-photo-thumb-card ${idx === 0 ? 'is-cover' : ''}`}>
+                                  <img
+                                    src={imgSrc || FALLBACK_RELIC_IMG}
+                                    alt={`Photo ${idx + 1}`}
+                                    className="admin-photo-thumb-img"
+                                    onError={(e) => {
+                                      e.currentTarget.onerror = null
+                                      e.currentTarget.src = FALLBACK_RELIC_IMG
+                                    }}
+                                  />
+                                  {idx === 0 ? (
+                                    <span className="badge-cover-photo">★ COVER</span>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      className="btn-set-cover"
+                                      onClick={() => handleSetCoverEditPhoto(idx)}
+                                      title="Make this photo the primary cover image"
+                                    >
+                                      Set Cover
+                                    </button>
+                                  )}
+                                  <button
+                                    type="button"
+                                    className="btn-delete-photo"
+                                    onClick={() => handleRemoveEditPhoto(idx)}
+                                    title="Remove photo"
+                                  >
+                                    ✕
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="admin-empty-photo-box">
+                              <span className="material-symbols-outlined" style={{ fontSize: 28, color: 'var(--outline)' }}>
+                                image_not_supported
+                              </span>
+                              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--on-surface-variant)' }}>
+                                No photos attached. Upload from device or paste an image URL below.
+                              </span>
+                            </div>
+                          )}
+
+                          {/* Actions: Upload Files + Add URL */}
+                          <div className="admin-photo-actions-row">
+                            <label className="btn-add-photos-label">
+                              <span className="material-symbols-outlined" style={{ fontSize: 16 }}>add_photo_alternate</span>
+                              <span>{isUploadingPhoto ? 'Compressing & Loading...' : '+ Upload Photos (Multiple)'}</span>
+                              <input
+                                type="file"
+                                accept="image/*"
+                                multiple
+                                onChange={handleEditPhotoUpload}
+                                style={{ display: 'none' }}
+                                disabled={isUploadingPhoto}
+                              />
+                            </label>
+
+                            <div className="admin-url-add-box">
+                              <input
+                                type="text"
+                                placeholder="Paste image URL (https://...)"
+                                value={editUrlInput}
+                                onChange={(e) => setEditUrlInput(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    e.preventDefault()
+                                    handleAddEditUrl()
+                                  }
+                                }}
+                                className="admin-input-compact"
+                              />
+                              <button
+                                type="button"
+                                className="btn-add-url"
+                                onClick={handleAddEditUrl}
+                              >
+                                + Add URL
+                              </button>
+                            </div>
                           </div>
                         </div>
 
@@ -744,50 +985,117 @@ export default function AdminDashboardModal({
                       {formSuccess && <div className="admin-alert-success">{formSuccess}</div>}
 
                       <form onSubmit={handlePublishRelic} className="admin-form-grid">
-                        {/* Photo Upload Area with Live Preview */}
+                        {/* Multi-Photo Management for New Relic */}
                         <div className="admin-form-field full-width">
-                          <label>Relic Product Photograph</label>
-                          <div className="admin-photo-dropzone">
-                            {imagePreview || newRelic.img ? (
-                              <div className="admin-preview-box">
-                                <img src={imagePreview || newRelic.img} alt="Preview" className="admin-preview-img" />
-                                <button
-                                  type="button"
-                                  className="btn-remove-preview"
-                                  onClick={() => {
-                                    setImagePreview('')
-                                    setNewRelic((p) => ({ ...p, img: '' }))
-                                  }}
-                                >
-                                  ✕ Change Photo
-                                </button>
-                              </div>
-                            ) : (
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                            <label style={{ margin: 0, fontWeight: 700 }}>
+                              Relic Photo Gallery ({newRelicImages.length} {newRelicImages.length === 1 ? 'photo' : 'photos'})
+                            </label>
+                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--on-surface-variant)' }}>
+                              First photo is the Cover / Feed image
+                            </span>
+                          </div>
+
+                          {/* Thumbnails Grid */}
+                          {newRelicImages.length > 0 ? (
+                            <div className="admin-photo-grid">
+                              {newRelicImages.map((imgSrc, idx) => (
+                                <div key={idx} className={`admin-photo-thumb-card ${idx === 0 ? 'is-cover' : ''}`}>
+                                  <img
+                                    src={imgSrc || FALLBACK_RELIC_IMG}
+                                    alt={`Photo ${idx + 1}`}
+                                    className="admin-photo-thumb-img"
+                                    onError={(e) => {
+                                      e.currentTarget.onerror = null
+                                      e.currentTarget.src = FALLBACK_RELIC_IMG
+                                    }}
+                                  />
+                                  {idx === 0 ? (
+                                    <span className="badge-cover-photo">★ COVER</span>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      className="btn-set-cover"
+                                      onClick={() => handleSetCoverNewPhoto(idx)}
+                                      title="Make this photo the primary cover image"
+                                    >
+                                      Set Cover
+                                    </button>
+                                  )}
+                                  <button
+                                    type="button"
+                                    className="btn-delete-photo"
+                                    onClick={() => handleRemoveNewPhoto(idx)}
+                                    title="Remove photo"
+                                  >
+                                    ✕
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="admin-photo-dropzone">
                               <label className="dropzone-label">
                                 <span className="material-symbols-outlined" style={{ fontSize: 32, color: 'var(--primary)' }}>
                                   cloud_upload
                                 </span>
                                 <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 700 }}>
-                                  Drag &amp; Drop or Click to Select Photo
+                                  {isUploadingPhoto ? 'Compressing & Loading Photos...' : 'Click to Select One or Multiple Photos'}
                                 </span>
                                 <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--on-surface-variant)' }}>
-                                  JPG, PNG, WEBP from your phone or device
+                                  JPG, PNG, WEBP from your phone or device · Multiple photos supported
                                 </span>
-                                <input type="file" accept="image/*" onChange={handlePhotoUpload} style={{ display: 'none' }} />
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  multiple
+                                  onChange={handlePhotoUpload}
+                                  style={{ display: 'none' }}
+                                  disabled={isUploadingPhoto}
+                                />
+                              </label>
+                            </div>
+                          )}
+
+                          {/* Actions Row */}
+                          <div className="admin-photo-actions-row">
+                            {newRelicImages.length > 0 && (
+                              <label className="btn-add-photos-label">
+                                <span className="material-symbols-outlined" style={{ fontSize: 16 }}>add_photo_alternate</span>
+                                <span>{isUploadingPhoto ? 'Compressing...' : '+ Add More Photos'}</span>
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  multiple
+                                  onChange={handlePhotoUpload}
+                                  style={{ display: 'none' }}
+                                  disabled={isUploadingPhoto}
+                                />
                               </label>
                             )}
-                          </div>
-                          <div style={{ marginTop: 6 }}>
-                            <input
-                              type="text"
-                              placeholder="...or paste external image URL (https://...)"
-                              value={newRelic.img}
-                              onChange={(e) => {
-                                setNewRelic({ ...newRelic, img: e.target.value })
-                                setImagePreview(e.target.value)
-                              }}
-                              className="admin-input-compact"
-                            />
+
+                            <div className="admin-url-add-box">
+                              <input
+                                type="text"
+                                placeholder="...or paste image URL (https://...)"
+                                value={newUrlInput}
+                                onChange={(e) => setNewUrlInput(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    e.preventDefault()
+                                    handleAddNewUrl()
+                                  }
+                                }}
+                                className="admin-input-compact"
+                              />
+                              <button
+                                type="button"
+                                className="btn-add-url"
+                                onClick={handleAddNewUrl}
+                              >
+                                + Add URL
+                              </button>
+                            </div>
                           </div>
                         </div>
 
@@ -797,7 +1105,7 @@ export default function AdminDashboardModal({
                             type="text"
                             placeholder="e.g. 1993 Nirvana In Utero Tour Tee"
                             value={newRelic.title}
-                            onChange={(e) => setNewRelic({ ...newRelic, title: e.target.value })}
+                            onChange={(e) => handleTitleChange(e.target.value)}
                             required
                           />
                         </div>
@@ -933,11 +1241,22 @@ export default function AdminDashboardModal({
                     <div className="admin-inventory-scroll">
                       {displayedRelics.map((r) => (
                         <div key={r.id} className={`admin-relic-row ${r.isSold ? 'sold-out' : ''} ${editingRelic?.id === r.id ? 'being-edited' : ''}`}>
-                          <img src={r.img} alt={r.title} className="admin-relic-thumb" />
+                          <img
+                            src={r.img || FALLBACK_RELIC_IMG}
+                            alt={r.title}
+                            className="admin-relic-thumb"
+                            onError={(e) => {
+                              e.currentTarget.onerror = null
+                              e.currentTarget.src = FALLBACK_RELIC_IMG
+                            }}
+                          />
                           <div className="admin-relic-details">
                             <div className="admin-relic-lot-row">
                               <span className="admin-relic-lot">{r.lot}</span>
                               <span className="admin-relic-cat">{r.category?.toUpperCase()}</span>
+                              <span className="admin-relic-photos-count" title={`${r.images?.length || (r.img ? 1 : 0)} photos in archival gallery`}>
+                                📷 {r.images && r.images.length > 0 ? r.images.length : (r.img ? 1 : 0)}
+                              </span>
                               {r.isSold && <span className="admin-sold-badge">SOLD OUT</span>}
                               {editingRelic?.id === r.id && <span className="admin-editing-badge">EDITING NOW</span>}
                             </div>

@@ -3,6 +3,9 @@ import { createClient } from '@supabase/supabase-js'
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
+export const FALLBACK_RELIC_IMG =
+  'https://lh3.googleusercontent.com/aida-public/AB6AXuBpMwMxh5Dfy-4OXiZB9iIedGEl9ZyTLWyayX6rhafm2EvBgYqGNmVvDcNqnRwoHWfLY2Yn5sfvNNoCG5JVgamSUfXtvPtoL1vXdOBFbJmfsktcjarJTA2aAcd19WCO4h08SyFQZAbFqQ5pTgAAOHVHD9-0vFr3SdHzveYB2ElCzQtFVvHmjqWbZZNQyaB4cIxXyQcxu_-oJYsZe9waOqqnBn1blc2eSnJIjMoLjQA'
+
 export const isSupabaseConfigured = Boolean(
   supabaseUrl &&
   supabaseAnonKey &&
@@ -32,7 +35,7 @@ export async function fetchRemoteRelics() {
     const { data, error } = await supabase
       .from('relics')
       .select('*')
-      .order('created_at', { ascending: true })
+      .order('created_at', { ascending: false })
 
     if (error) {
       console.warn('[SUPABASE] Fetch relics error:', error.message)
@@ -40,22 +43,38 @@ export async function fetchRemoteRelics() {
     }
 
     if (data && data.length > 0) {
-      // Map database schema to frontend relic format
-      return data.map((r) => ({
-        id: r.id,
-        lot: r.lot,
-        category: r.category,
-        badge: r.badge,
-        title: r.title,
-        price: Number(r.price),
-        year: r.year,
-        tag: r.tag,
-        barcode: r.barcode,
-        measurements: r.measurements,
-        desc: r.desc,
-        img: r.img,
-        isSold: Boolean(r.is_sold),
-      }))
+      // Map database schema to frontend relic format with multi-image support
+      return data.map((r) => {
+        let cleanDesc = r.desc || ''
+        let parsedImages = []
+        const imagesMatch = cleanDesc.match(/<!--VAULT_IMAGES_JSON:(.*?)-->/)
+        if (imagesMatch) {
+          try {
+            parsedImages = JSON.parse(imagesMatch[1])
+            cleanDesc = cleanDesc.replace(/<!--VAULT_IMAGES_JSON:.*?-->/, '').trim()
+          } catch {}
+        }
+        if (!parsedImages.length && r.img) {
+          parsedImages = [r.img]
+        }
+
+        return {
+          id: r.id,
+          lot: r.lot,
+          category: r.category || 'tees',
+          badge: r.badge || '✦ 1-OF-1 ONLY',
+          title: r.title,
+          price: Number(r.price),
+          year: r.year,
+          tag: r.tag,
+          barcode: r.barcode,
+          measurements: r.measurements,
+          desc: cleanDesc,
+          img: parsedImages[0] || r.img || '',
+          images: parsedImages,
+          isSold: Boolean(r.is_sold),
+        }
+      })
     }
     return []
   } catch (err) {
@@ -67,21 +86,32 @@ export async function fetchRemoteRelics() {
 export async function syncAllRelicsToRemote(relics) {
   if (!isSupabaseConfigured || !supabase || !relics?.length) return
   try {
-    const dbRows = relics.map((r) => ({
-      id: r.id,
-      lot: r.lot,
-      category: r.category,
-      badge: r.badge,
-      title: r.title,
-      price: Number(r.price),
-      year: r.year,
-      tag: r.tag,
-      barcode: r.barcode,
-      measurements: r.measurements,
-      desc: r.desc,
-      img: r.img,
-      is_sold: Boolean(r.isSold),
-    }))
+    const dbRows = relics.map((r) => {
+      const allImages = Array.isArray(r.images) && r.images.length > 0
+        ? r.images
+        : (r.img ? [r.img] : [])
+      const primaryImg = allImages[0] || r.img || ''
+      let serializedDesc = (r.desc || '').replace(/<!--VAULT_IMAGES_JSON:.*?-->/g, '').trim()
+      if (allImages.length > 1) {
+        serializedDesc += '\n<!--VAULT_IMAGES_JSON:' + JSON.stringify(allImages) + '-->'
+      }
+
+      return {
+        id: r.id,
+        lot: r.lot,
+        category: r.category || 'tees',
+        badge: r.badge || '✦ 1-OF-1 ONLY',
+        title: r.title,
+        price: Number(r.price),
+        year: r.year,
+        tag: r.tag,
+        barcode: r.barcode,
+        measurements: r.measurements,
+        desc: serializedDesc,
+        img: primaryImg,
+        is_sold: Boolean(r.isSold),
+      }
+    })
 
     const { error } = await supabase.from('relics').upsert(dbRows, { onConflict: 'id' })
     if (error) console.error('[SUPABASE] Upsert relics error:', error.message)

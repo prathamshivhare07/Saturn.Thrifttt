@@ -15,6 +15,7 @@ import {
   fetchRemoteConfig,
   saveRemoteConfig,
   subscribeToStoreConfig,
+  FALLBACK_RELIC_IMG,
 } from './lib/supabase'
 import './App.css'
 
@@ -272,6 +273,127 @@ const DEFAULT_STORE_SETTINGS = {
   instagramHandle: '@saturn.thrifttt',
 }
 
+function RelicCardItem({ relic, inCart, onClaim }) {
+  const [activePhotoIdx, setActivePhotoIdx] = useState(0)
+  const isSold = Boolean(relic.isSold)
+  const images = Array.isArray(relic.images) && relic.images.length > 0
+    ? relic.images
+    : (relic.img ? [relic.img] : [FALLBACK_RELIC_IMG])
+
+  const currentImg = images[activePhotoIdx] || images[0] || FALLBACK_RELIC_IMG
+  const cleanDesc = (relic.desc || '').replace(/<!--VAULT_IMAGES_JSON:.*?-->/g, '').trim()
+
+  const handleNextPhoto = (e) => {
+    e.stopPropagation()
+    setActivePhotoIdx((prev) => (prev + 1) % images.length)
+  }
+
+  const handlePrevPhoto = (e) => {
+    e.stopPropagation()
+    setActivePhotoIdx((prev) => (prev - 1 + images.length) % images.length)
+  }
+
+  return (
+    <div className={`relic-card ${isSold ? 'relic-is-sold' : ''}`}>
+      <div className="relic-sticker">{isSold ? '✦ ARCHIVED / SOLD' : relic.badge}</div>
+      <div className="relic-lot-chip">{relic.lot}</div>
+
+      <div className="relic-image-wrap">
+        <img
+          src={currentImg}
+          alt={relic.title}
+          className="relic-image"
+          onError={(e) => {
+            e.currentTarget.onerror = null
+            e.currentTarget.src = FALLBACK_RELIC_IMG
+          }}
+        />
+        <div className="relic-tag-watermark">{relic.tag}</div>
+
+        {images.length > 1 && (
+          <div className="relic-photos-counter-pill">
+            <span className="material-symbols-outlined" style={{ fontSize: 11 }}>photo_library</span>
+            <span>{activePhotoIdx + 1}/{images.length}</span>
+          </div>
+        )}
+
+        {images.length > 1 && (
+          <div className="relic-photo-arrows">
+            <button
+              type="button"
+              className="relic-photo-arrow-btn left"
+              onClick={handlePrevPhoto}
+              aria-label="Previous photo"
+            >
+              ‹
+            </button>
+            <button
+              type="button"
+              className="relic-photo-arrow-btn right"
+              onClick={handleNextPhoto}
+              aria-label="Next photo"
+            >
+              ›
+            </button>
+          </div>
+        )}
+
+        {images.length > 1 && (
+          <div className="relic-photo-dots">
+            {images.map((_, dotIdx) => (
+              <button
+                key={dotIdx}
+                type="button"
+                className={`relic-photo-dot ${dotIdx === activePhotoIdx ? 'active' : ''}`}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setActivePhotoIdx(dotIdx)
+                }}
+                aria-label={`View photo ${dotIdx + 1}`}
+              />
+            ))}
+          </div>
+        )}
+
+        {isSold && (
+          <div className="relic-sold-overlay">
+            <span>SOLD OUT</span>
+          </div>
+        )}
+      </div>
+
+      <div className="relic-body">
+        <div>
+          <div className="relic-meta-row">
+            <span className="relic-year">{relic.year}</span>
+            <span className="relic-price">₹{Number(relic.price).toLocaleString('en-IN')}</span>
+          </div>
+          <h3 className="relic-title">{relic.title}</h3>
+          <p className="relic-desc">{cleanDesc}</p>
+        </div>
+
+        <div>
+          <div className="relic-barcode-row">
+            <span>{relic.barcode}</span>
+            <span>{relic.measurements}</span>
+          </div>
+
+          <button
+            type="button"
+            className={`btn-claim-relic ${isSold ? 'btn-disabled-sold' : ''}`}
+            onClick={() => !isSold && onClaim(relic)}
+            disabled={isSold}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: 16 }}>
+              {isSold ? 'block' : inCart ? 'done' : 'shopping_cart'}
+            </span>
+            <span>{isSold ? 'RELIC SOLD OUT' : inCart ? 'CLAIMED IN CART' : 'QUICK CLAIM RELIC'}</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 export default function App() {
   // Website Theme State (Persisted in localStorage: cream | cosmic | tokyo)
@@ -557,6 +679,16 @@ export default function App() {
     const unsubRelics = subscribeToRelics((payload) => {
       if (payload.eventType === 'UPDATE') {
         const u = payload.new
+        let parsedImages = []
+        if (u.desc && u.desc.includes('<!--VAULT_IMAGES_JSON:')) {
+          try {
+            const match = u.desc.match(/<!--VAULT_IMAGES_JSON:(.*?)-->/)
+            if (match && match[1]) parsedImages = JSON.parse(match[1])
+          } catch {}
+        }
+        if (!parsedImages.length && u.img) parsedImages = [u.img]
+        const cleanDesc = (u.desc || '').replace(/<!--VAULT_IMAGES_JSON:.*?-->/g, '').trim()
+
         setRelics((prev) =>
           prev.map((r) =>
             r.id === u.id
@@ -571,8 +703,9 @@ export default function App() {
                   tag: u.tag,
                   barcode: u.barcode,
                   measurements: u.measurements,
-                  desc: u.desc,
-                  img: u.img,
+                  desc: cleanDesc,
+                  img: parsedImages[0] || u.img || '',
+                  images: parsedImages,
                   isSold: Boolean(u.is_sold),
                 }
               : r
@@ -580,6 +713,16 @@ export default function App() {
         )
       } else if (payload.eventType === 'INSERT') {
         const n = payload.new
+        let parsedImages = []
+        if (n.desc && n.desc.includes('<!--VAULT_IMAGES_JSON:')) {
+          try {
+            const match = n.desc.match(/<!--VAULT_IMAGES_JSON:(.*?)-->/)
+            if (match && match[1]) parsedImages = JSON.parse(match[1])
+          } catch {}
+        }
+        if (!parsedImages.length && n.img) parsedImages = [n.img]
+        const cleanDesc = (n.desc || '').replace(/<!--VAULT_IMAGES_JSON:.*?-->/g, '').trim()
+
         const item = {
           id: n.id,
           lot: n.lot,
@@ -591,8 +734,9 @@ export default function App() {
           tag: n.tag,
           barcode: n.barcode,
           measurements: n.measurements,
-          desc: n.desc,
-          img: n.img,
+          desc: cleanDesc,
+          img: parsedImages[0] || n.img || '',
+          images: parsedImages,
           isSold: Boolean(n.is_sold),
         }
         setRelics((prev) => (prev.some((r) => r.id === item.id) ? prev : [item, ...prev]))
@@ -768,24 +912,18 @@ export default function App() {
     }
   }
 
-  // 2-3 Recent Drops for Frame 325 Delivery Truck Unboxing
-  const recentDrops = [
-    {
-      ...(relics[0] || INITIAL_RELICS[0]),
-      boxNumber: 'BOX #01',
-      unboxedOrigin: 'TOKYO AIR-FREIGHT',
-    },
-    {
-      ...(relics[1] || INITIAL_RELICS[1]),
-      boxNumber: 'BOX #02',
-      unboxedOrigin: 'DETROIT CARGO',
-    },
-    {
-      ...(relics[2] || INITIAL_RELICS[2]),
-      boxNumber: 'BOX #03',
-      unboxedOrigin: 'VALENCIA ARCHIVE',
-    },
-  ]
+  // 3 Recent Drops for Frame 325 Delivery Truck Unboxing (Always newest live drops)
+  const recentDrops = (
+    relics.length >= 3
+      ? relics.slice(0, 3)
+      : [...relics, ...INITIAL_RELICS.slice(0, Math.max(0, 3 - relics.length))]
+  ).map((r, idx) => ({
+    ...r,
+    img: r.img || (Array.isArray(r.images) && r.images[0]) || FALLBACK_RELIC_IMG,
+    boxNumber: `BOX #0${idx + 1}`,
+    unboxedOrigin:
+      idx === 0 ? 'TOKYO AIR-FREIGHT' : idx === 1 ? 'DETROIT CARGO' : 'VALENCIA ARCHIVE',
+  }))
 
   // Direct smooth scroll jump to New Arrivals unboxed state (Frame 366+)
   const scrollToNewArrivals = () => {
@@ -1475,7 +1613,7 @@ export default function App() {
             </h2>
 
             <div className="third-screen-subheading">
-              [ 3 ARCHIVAL RELICS JUST UNLOADED FROM EXPRESS FREIGHT ]
+              [ {recentDrops.length} ARCHIVAL RELICS JUST UNLOADED FROM EXPRESS FREIGHT ]
             </div>
 
             {/* 3 Recent Drops Showcase */}
@@ -1485,10 +1623,23 @@ export default function App() {
                 return (
                   <div key={relic.id || idx} className="recent-drop-card">
                     <div className="recent-drop-img-box">
-                      <img src={relic.img} alt={relic.title} className="recent-drop-img" />
+                      <img
+                        src={relic.img || (Array.isArray(relic.images) && relic.images[0]) || FALLBACK_RELIC_IMG}
+                        alt={relic.title}
+                        className="recent-drop-img"
+                        onError={(e) => {
+                          e.currentTarget.onerror = null
+                          e.currentTarget.src = FALLBACK_RELIC_IMG
+                        }}
+                      />
                       <div className="recent-drop-tag-chip">
                         {relic.boxNumber || `BOX #0${idx + 1}`}
                       </div>
+                      {relic.images && relic.images.length > 1 && (
+                        <span className="recent-drop-photos-badge" title={`${relic.images.length} photos available`}>
+                          📷 {relic.images.length}
+                        </span>
+                      )}
                     </div>
 
                     <div className="recent-drop-info">
@@ -1500,7 +1651,7 @@ export default function App() {
                     </div>
 
                     <div className="recent-drop-footer">
-                      <div className="recent-drop-price">₹{relic.price.toLocaleString('en-IN')}</div>
+                      <div className="recent-drop-price">₹{Number(relic.price).toLocaleString('en-IN')}</div>
                       <button
                         type="button"
                         className={`btn-quick-claim ${inCart ? 'claimed' : ''}`}
@@ -1521,7 +1672,7 @@ export default function App() {
             <div className="third-screen-cta-row">
               <a href="#vault-drop" className="btn-primary-archive">
                 <span className="material-symbols-outlined" style={{ fontSize: 16 }}>inventory_2</span>
-                <span>Inspect Entire Vault Catalog (40 Relics)</span>
+                <span>Inspect Entire Vault Catalog ({relics.length} Relics)</span>
               </a>
               <button
                 type="button"
@@ -1629,52 +1780,13 @@ export default function App() {
           <div className="relics-grid">
             {filteredRelics.map((relic) => {
               const inCart = cart.some((item) => item.id === relic.id)
-              const isSold = Boolean(relic.isSold)
               return (
-                <div key={relic.id} className={`relic-card ${isSold ? 'relic-is-sold' : ''}`}>
-                  <div className="relic-sticker">{isSold ? '✦ ARCHIVED / SOLD' : relic.badge}</div>
-                  <div className="relic-lot-chip">{relic.lot}</div>
-
-                  <div className="relic-image-wrap">
-                    <img src={relic.img} alt={relic.title} className="relic-image" />
-                    <div className="relic-tag-watermark">{relic.tag}</div>
-                    {isSold && (
-                      <div className="relic-sold-overlay">
-                        <span>SOLD OUT</span>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="relic-body">
-                    <div>
-                      <div className="relic-meta-row">
-                        <span className="relic-year">{relic.year}</span>
-                        <span className="relic-price">₹{relic.price.toLocaleString('en-IN')}</span>
-                      </div>
-                      <h3 className="relic-title">{relic.title}</h3>
-                      <p className="relic-desc">{relic.desc}</p>
-                    </div>
-
-                    <div>
-                      <div className="relic-barcode-row">
-                        <span>{relic.barcode}</span>
-                        <span>{relic.measurements}</span>
-                      </div>
-
-                      <button
-                        type="button"
-                        className={`btn-claim-relic ${isSold ? 'btn-disabled-sold' : ''}`}
-                        onClick={() => !isSold && handleClaimRelic(relic)}
-                        disabled={isSold}
-                      >
-                        <span className="material-symbols-outlined" style={{ fontSize: 16 }}>
-                          {isSold ? 'block' : inCart ? 'done' : 'shopping_cart'}
-                        </span>
-                        <span>{isSold ? 'RELIC SOLD OUT' : inCart ? 'CLAIMED IN CART' : 'QUICK CLAIM RELIC'}</span>
-                      </button>
-                    </div>
-                  </div>
-                </div>
+                <RelicCardItem
+                  key={relic.id}
+                  relic={relic}
+                  inCart={inCart}
+                  onClaim={handleClaimRelic}
+                />
               )
             })}
           </div>
@@ -1683,7 +1795,7 @@ export default function App() {
           <div className="vault-footer-strip">
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700 }}>
               <span className="material-symbols-outlined" style={{ color: 'var(--primary)' }}>token</span>
-              <span>TOTAL DROP CAPACITY: 40 ITEMS // 12 REMAINING IN LIVE STACK</span>
+              <span>TOTAL DROP CAPACITY: {relics.length} ITEMS // {relics.filter((r) => !r.isSold).length} REMAINING IN LIVE STACK</span>
             </div>
             <a href="#vault-drop" style={{ fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700, color: 'var(--primary)', textDecoration: 'none' }}>
               [ VIEW COMPLETE DROP CATALOG #04 -&gt; ]

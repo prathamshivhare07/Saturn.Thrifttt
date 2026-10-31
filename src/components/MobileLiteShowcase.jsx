@@ -1,4 +1,5 @@
 import React from 'react'
+import { FALLBACK_RELIC_IMG } from '../lib/supabase'
 
 export function MobileLiteShowcase({
   categories = [],
@@ -8,7 +9,7 @@ export function MobileLiteShowcase({
   onClaimRelic,
   cart = [],
 }) {
-  const featuredRelics = relics.filter((r) => !r.isSold).slice(0, 4)
+  const featuredRelics = relics.filter((r) => !r.isSold).slice(0, 10)
 
   return (
     <div className="mobile-lite-showcase">
@@ -53,11 +54,15 @@ export function MobileLiteShowcase({
             <div key={relic.id} className="mobile-lite-card">
               <div className="mobile-lite-img-box">
                 <img
-                  src={relic.img}
+                  src={relic.img || (Array.isArray(relic.images) && relic.images[0]) || FALLBACK_RELIC_IMG}
                   alt={relic.title}
                   className="mobile-lite-img"
                   loading="lazy"
                   decoding="async"
+                  onError={(e) => {
+                    e.currentTarget.onerror = null
+                    e.currentTarget.src = FALLBACK_RELIC_IMG
+                  }}
                 />
                 <span className="mobile-lite-badge">{relic.lot}</span>
               </div>
