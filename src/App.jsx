@@ -268,8 +268,9 @@ const DEFAULT_STORE_SETTINGS = {
   upiVpa: '9329993116@kotakbank',
   deliveryFee: 120,
   whatsappNumber: '+919329993116',
+  whatsappCommunityUrl: '',
   storeLocation: 'Arera Colony, Bhopal, MP 462016',
-  supportEmail: 'curator@saturnthrift.in',
+  supportEmail: 'curator@saturnthrifttt.in',
   instagramHandle: '@saturn.thrifttt',
 }
 
@@ -305,9 +306,9 @@ function RelicCardItem({ relic, inCart, onClaim }) {
 
   // Filter out any fallback placeholder so the user's real uploaded photos always take precedence
   const realImages = rawImages.filter(
-    (img) => img && !img.includes('AB6AXuBpMwMxh5Dfy')
+    (img) => img && !img.includes('AB6AXuBpMwMxh5Dfy') && !img.includes('lh3.googleusercontent.com')
   )
-  const images = realImages.length > 0 ? realImages : [relic.img || FALLBACK_RELIC_IMG]
+  const images = realImages.length > 0 ? realImages : [relic.img && !relic.img.includes('lh3.googleusercontent.com') ? relic.img : FALLBACK_RELIC_IMG]
 
   const currentImg = images[activePhotoIdx] || images[0] || FALLBACK_RELIC_IMG
   const cleanDesc = (relic.desc || '').replace(/<!--VAULT_IMAGES_JSON:.*?-->/g, '').trim()
@@ -483,17 +484,21 @@ export default function App() {
       if (saved) {
         const parsed = JSON.parse(saved)
         if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed.map((r) => {
+          const userUploadedRelics = parsed.filter(
+            (r) => r.id && !String(r.id).match(/^relic-[1-8]$/) && (r.img?.startsWith('data:') || (Array.isArray(r.images) && r.images.length > 0))
+          )
+          const targetRelics = userUploadedRelics.length > 0 ? userUploadedRelics : parsed
+          return targetRelics.map((r) => {
             const rawImgs = Array.isArray(r.images) && r.images.length > 0
               ? r.images
               : (r.img ? [r.img] : [])
             const realImgs = rawImgs.filter(
-              (img) => img && !img.includes('AB6AXuBpMwMxh5Dfy')
+              (img) => img && !img.includes('AB6AXuBpMwMxh5Dfy') && !img.includes('lh3.googleusercontent.com')
             )
             const cleanImages = realImgs.length > 0 ? realImgs : rawImgs
-            const cover = (cleanImages.length > 0 && !cleanImages[0].includes('AB6AXuBpMwMxh5Dfy'))
+            const cover = (cleanImages.length > 0 && !cleanImages[0].includes('AB6AXuBpMwMxh5Dfy') && !cleanImages[0].includes('lh3.googleusercontent.com'))
               ? cleanImages[0]
-              : (r.img && !r.img.includes('AB6AXuBpMwMxh5Dfy') ? r.img : (cleanImages[0] || ''))
+              : (r.img && !r.img.includes('AB6AXuBpMwMxh5Dfy') && !r.img.includes('lh3.googleusercontent.com') ? r.img : (cleanImages[0] || FALLBACK_RELIC_IMG))
             return {
               ...r,
               img: cover,
@@ -692,16 +697,11 @@ export default function App() {
   useEffect(() => {
     if (!isSupabaseConfigured) return
 
-    // 1. Initial Load & Seed Relics (Merge remote drops with local vault catalog)
+    // 1. Initial Load & Seed Relics (Always prioritize pure remote catalog from Supabase)
     fetchRemoteRelics().then((remoteRelics) => {
       if (remoteRelics && remoteRelics.length > 0) {
-        setRelics((prev) => {
-          const remoteIds = new Set(remoteRelics.map((r) => r.id))
-          const missing = prev.filter((r) => !remoteIds.has(r.id))
-          const merged = [...remoteRelics, ...missing]
-          safeSetLocalStorage('saturn_vault_relics', JSON.stringify(merged))
-          return merged
-        })
+        setRelics(remoteRelics)
+        safeSetLocalStorage('saturn_vault_relics', JSON.stringify(remoteRelics))
       } else if (remoteRelics && remoteRelics.length === 0) {
         syncAllRelicsToRemote(relics)
       }
@@ -861,11 +861,27 @@ export default function App() {
   // Category Filter & 3D Hanger State
   const [activeCategory, setActiveCategory] = useState('all')
 
-  // Cart
-  const [cart, setCart] = useState([
-    INITIAL_RELICS[0],
-    INITIAL_RELICS[1],
-  ])
+  // Cart (Persisted in localStorage, begins empty for clean visitor experience)
+  const [cart, setCart] = useState(() => {
+    try {
+      const saved = localStorage.getItem('saturn_cart_stack')
+      if (saved) {
+        const parsed = JSON.parse(saved)
+        // Clean out any legacy mock relics from early cart versions
+        if (Array.isArray(parsed)) {
+          return parsed.filter((item) => item && !String(item.id).match(/^relic-[1-8]$/))
+        }
+      }
+      return []
+    } catch {
+      return []
+    }
+  })
+
+  // Synchronize cart changes to local storage
+  useEffect(() => {
+    safeSetLocalStorage('saturn_cart_stack', JSON.stringify(cart))
+  }, [cart])
   const [isCartOpen, setIsCartOpen] = useState(false)
 
   // User Authentication State (persisted in localStorage)
@@ -923,6 +939,9 @@ export default function App() {
 
     // Clear cart stack upon confirmed vault acquisition
     setCart([])
+    try {
+      localStorage.removeItem('saturn_cart_stack')
+    } catch {}
 
     // Log to Curator Central telemetry
     const newOrderRecord = {
@@ -972,22 +991,22 @@ export default function App() {
     }
   }
 
-  // 3 Recent Drops for Frame 325 Delivery Truck Unboxing (Always newest live drops)
+  // 3 Recent Drops for Frame 325 Delivery Truck Unboxing (Always newest live curator drops)
   const recentDrops = (
     relics.length >= 3
       ? relics.slice(0, 3)
-      : [...relics, ...INITIAL_RELICS.slice(0, Math.max(0, 3 - relics.length))]
+      : relics
   ).map((r, idx) => {
     const rawImgs = Array.isArray(r.images) && r.images.length > 0
       ? r.images
       : (r.img ? [r.img] : [])
-    const realImgs = rawImgs.filter((img) => img && !img.includes('AB6AXuBpMwMxh5Dfy'))
-    const cover = realImgs[0] || (r.img && !r.img.includes('AB6AXuBpMwMxh5Dfy') ? r.img : '') || FALLBACK_RELIC_IMG
+    const realImgs = rawImgs.filter((img) => img && !img.includes('AB6AXuBpMwMxh5Dfy') && !img.includes('lh3.googleusercontent.com'))
+    const cover = realImgs[0] || (r.img && !r.img.includes('AB6AXuBpMwMxh5Dfy') && !r.img.includes('lh3.googleusercontent.com') ? r.img : '') || FALLBACK_RELIC_IMG
 
     return {
       ...r,
       img: cover,
-      images: realImgs.length > 0 ? realImgs : r.images,
+      images: realImgs.length > 0 ? realImgs : [cover],
       boxNumber: `BOX #0${idx + 1}`,
       unboxedOrigin:
         idx === 0 ? 'TOKYO AIR-FREIGHT' : idx === 1 ? 'DETROIT CARGO' : 'VALENCIA ARCHIVE',
@@ -1376,6 +1395,29 @@ export default function App() {
 
           {/* Minimal Actions */}
           <div className="header-actions">
+            {storeSettings?.whatsappCommunityUrl && (
+              <a
+                href={storeSettings.whatsappCommunityUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="action-pill wp-community-header-pill"
+                title="Join VIP WhatsApp Droplist Community"
+                style={{
+                  textDecoration: 'none',
+                  color: '#15803d',
+                  borderColor: 'rgba(34, 197, 94, 0.4)',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 4,
+                }}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: 15, color: '#16a34a' }}>
+                  groups
+                </span>
+                <span style={{ fontWeight: 700, fontSize: 11 }}>VIP WP</span>
+              </a>
+            )}
+
             <button
               type="button"
               className={`user-auth-pill ${currentUser ? 'logged-in' : ''}`}
@@ -2068,6 +2110,18 @@ export default function App() {
                   Store Community
                 </h5>
                 <ul className="footer-links-list">
+                  {storeSettings?.whatsappCommunityUrl && (
+                    <li>
+                      <a
+                        href={storeSettings.whatsappCommunityUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ color: '#16a34a', fontWeight: 700, textDecoration: 'none' }}
+                      >
+                        ✦ Join VIP WhatsApp Community ↗
+                      </a>
+                    </li>
+                  )}
                   <li><a href="https://instagram.com/saturn.thrifttt" target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'none' }}>@saturn.thrifttt (Instagram)</a></li>
                   <li>Daily Story Droplist</li>
                   <li>Customer Lookbooks</li>

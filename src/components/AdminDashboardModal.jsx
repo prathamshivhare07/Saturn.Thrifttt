@@ -2041,6 +2041,19 @@ export default function AdminDashboardModal({
                     </div>
 
                     <div className="admin-form-field">
+                      <label>WhatsApp VIP Community / Droplist Channel Invite Link</label>
+                      <input
+                        type="url"
+                        value={localSettings.whatsappCommunityUrl || ''}
+                        onChange={(e) => setLocalSettings({ ...localSettings, whatsappCommunityUrl: e.target.value })}
+                        placeholder="https://chat.whatsapp.com/..."
+                      />
+                      <span style={{ fontSize: 10, color: 'var(--outline)', marginTop: 4, display: 'block', fontFamily: 'var(--font-mono)' }}>
+                        Paste your WhatsApp Group / Community invite URL here. It links directly in the header and footer.
+                      </span>
+                    </div>
+
+                    <div className="admin-form-field">
                       <label>Instagram Official Handle</label>
                       <input
                         type="text"

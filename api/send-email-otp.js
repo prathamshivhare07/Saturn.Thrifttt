@@ -51,9 +51,9 @@ export default async function handler(req, res) {
     if (resendApiKey && !resendApiKey.includes('your_resend') && !resendApiKey.includes('your_api_key')) {
       try {
         const resend = new Resend(resendApiKey)
-        // Always prefer verified domain saturnthrifttt.in over legacy sandbox onboarding@resend.dev
+        // Priority: Verified domain saturnthrifttt.in ensures instant delivery to any public mailbox
         const configuredSender = process.env.EMAIL_FROM
-        const sender = (configuredSender && !configuredSender.includes('onboarding@resend.dev'))
+        const sender = (configuredSender && configuredSender.includes('saturnthrifttt.in'))
           ? configuredSender
           : 'Saturn Archive <vault@saturnthrifttt.in>'
 

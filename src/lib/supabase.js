@@ -4,7 +4,7 @@ const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
 export const FALLBACK_RELIC_IMG =
-  'https://lh3.googleusercontent.com/aida-public/AB6AXuBpMwMxh5Dfy-4OXiZB9iIedGEl9ZyTLWyayX6rhafm2EvBgYqGNmVvDcNqnRwoHWfLY2Yn5sfvNNoCG5JVgamSUfXtvPtoL1vXdOBFbJmfsktcjarJTA2aAcd19WCO4h08SyFQZAbFqQ5pTgAAOHVHD9-0vFr3SdHzveYB2ElCzQtFVvHmjqWbZZNQyaB4cIxXyQcxu_-oJYsZe9waOqqnBn1blc2eSnJIjMoLjQA'
+  "data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='600' height='750' viewBox='0 0 600 750'%3E%3Crect width='100%25' height='100%25' fill='%231a1715'/%3E%3Cg fill='none' stroke='%233a342e' stroke-width='1.5'%3E%3Cpath d='M20 20h560v710H20z'/%3E%3Ccircle cx='300' cy='340' r='110' stroke='%235a4f43' stroke-dasharray='4 4'/%3E%3Cpath d='M250 340h100M300 290v100' stroke='%23a45a2a' stroke-width='2'/%3E%3C/g%3E%3Ctext x='300' y='500' font-family='monospace' font-size='16' fill='%23e0d8ce' text-anchor='middle' letter-spacing='3'%3ESATURN.THRIFTTT%3C/text%3E%3Ctext x='300' y='528' font-family='monospace' font-size='11' fill='%238c8275' text-anchor='middle' letter-spacing='2'%3E1-OF-1 ARCHIVAL RELIC%3C/text%3E%3C/svg%3E"
 
 export const isSupabaseConfigured = Boolean(
   supabaseUrl &&
@@ -58,14 +58,14 @@ export async function fetchRemoteRelics() {
           parsedImages = [r.img]
         }
 
-        const realParsed = parsedImages.filter((img) => img && !img.includes('AB6AXuBpMwMxh5Dfy'))
+        const realParsed = parsedImages.filter((img) => img && !img.includes('AB6AXuBpMwMxh5Dfy') && !img.includes('lh3.googleusercontent.com'))
         if (realParsed.length > 0) {
           parsedImages = realParsed
         }
 
-        const cover = (parsedImages.length > 0 && !parsedImages[0].includes('AB6AXuBpMwMxh5Dfy'))
+        const cover = (parsedImages.length > 0 && !parsedImages[0].includes('AB6AXuBpMwMxh5Dfy') && !parsedImages[0].includes('lh3.googleusercontent.com'))
           ? parsedImages[0]
-          : (r.img && !r.img.includes('AB6AXuBpMwMxh5Dfy') ? r.img : (parsedImages[0] || ''))
+          : (r.img && !r.img.includes('AB6AXuBpMwMxh5Dfy') && !r.img.includes('lh3.googleusercontent.com') ? r.img : (parsedImages[0] || FALLBACK_RELIC_IMG))
 
         return {
           id: r.id,
