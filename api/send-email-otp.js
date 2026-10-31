@@ -51,7 +51,11 @@ export default async function handler(req, res) {
     if (resendApiKey && !resendApiKey.includes('your_resend') && !resendApiKey.includes('your_api_key')) {
       try {
         const resend = new Resend(resendApiKey)
-        const sender = process.env.EMAIL_FROM || 'Saturn Archive <vault@saturnthrifttt.in>'
+        // Always prefer verified domain saturnthrifttt.in over legacy sandbox onboarding@resend.dev
+        const configuredSender = process.env.EMAIL_FROM
+        const sender = (configuredSender && !configuredSender.includes('onboarding@resend.dev'))
+          ? configuredSender
+          : 'Saturn Archive <vault@saturnthrifttt.in>'
 
         const { data, error } = await resend.emails.send({
           from: sender,

@@ -78,6 +78,7 @@ export default function AuthModal({
       localStorage.setItem('saturn_registered_users', JSON.stringify(savedUsers))
     }
 
+    setIsVerifying(false)
     onLogin(authenticatedUser)
     setSuccessMsg('✦ Email Verified! Welcome to the Saturn Vault.')
     setTimeout(() => {
