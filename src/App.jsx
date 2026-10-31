@@ -276,9 +276,15 @@ const DEFAULT_STORE_SETTINGS = {
 function RelicCardItem({ relic, inCart, onClaim }) {
   const [activePhotoIdx, setActivePhotoIdx] = useState(0)
   const isSold = Boolean(relic.isSold)
-  const images = Array.isArray(relic.images) && relic.images.length > 0
+  const rawImages = Array.isArray(relic.images) && relic.images.length > 0
     ? relic.images
-    : (relic.img ? [relic.img] : [FALLBACK_RELIC_IMG])
+    : (relic.img ? [relic.img] : [])
+
+  // Filter out any fallback placeholder so the user's real uploaded photos always take precedence
+  const realImages = rawImages.filter(
+    (img) => img && !img.includes('AB6AXuBpMwMxh5Dfy')
+  )
+  const images = realImages.length > 0 ? realImages : [relic.img || FALLBACK_RELIC_IMG]
 
   const currentImg = images[activePhotoIdx] || images[0] || FALLBACK_RELIC_IMG
   const cleanDesc = (relic.desc || '').replace(/<!--VAULT_IMAGES_JSON:.*?-->/g, '').trim()
@@ -451,7 +457,29 @@ export default function App() {
   const [relics, setRelics] = useState(() => {
     try {
       const saved = localStorage.getItem('saturn_vault_relics')
-      return saved ? JSON.parse(saved) : INITIAL_RELICS
+      if (saved) {
+        const parsed = JSON.parse(saved)
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed.map((r) => {
+            const rawImgs = Array.isArray(r.images) && r.images.length > 0
+              ? r.images
+              : (r.img ? [r.img] : [])
+            const realImgs = rawImgs.filter(
+              (img) => img && !img.includes('AB6AXuBpMwMxh5Dfy')
+            )
+            const cleanImages = realImgs.length > 0 ? realImgs : rawImgs
+            const cover = (cleanImages.length > 0 && !cleanImages[0].includes('AB6AXuBpMwMxh5Dfy'))
+              ? cleanImages[0]
+              : (r.img && !r.img.includes('AB6AXuBpMwMxh5Dfy') ? r.img : (cleanImages[0] || ''))
+            return {
+              ...r,
+              img: cover,
+              images: cleanImages,
+            }
+          })
+        }
+      }
+      return INITIAL_RELICS
     } catch {
       return INITIAL_RELICS
     }
@@ -917,13 +945,22 @@ export default function App() {
     relics.length >= 3
       ? relics.slice(0, 3)
       : [...relics, ...INITIAL_RELICS.slice(0, Math.max(0, 3 - relics.length))]
-  ).map((r, idx) => ({
-    ...r,
-    img: r.img || (Array.isArray(r.images) && r.images[0]) || FALLBACK_RELIC_IMG,
-    boxNumber: `BOX #0${idx + 1}`,
-    unboxedOrigin:
-      idx === 0 ? 'TOKYO AIR-FREIGHT' : idx === 1 ? 'DETROIT CARGO' : 'VALENCIA ARCHIVE',
-  }))
+  ).map((r, idx) => {
+    const rawImgs = Array.isArray(r.images) && r.images.length > 0
+      ? r.images
+      : (r.img ? [r.img] : [])
+    const realImgs = rawImgs.filter((img) => img && !img.includes('AB6AXuBpMwMxh5Dfy'))
+    const cover = realImgs[0] || (r.img && !r.img.includes('AB6AXuBpMwMxh5Dfy') ? r.img : '') || FALLBACK_RELIC_IMG
+
+    return {
+      ...r,
+      img: cover,
+      images: realImgs.length > 0 ? realImgs : r.images,
+      boxNumber: `BOX #0${idx + 1}`,
+      unboxedOrigin:
+        idx === 0 ? 'TOKYO AIR-FREIGHT' : idx === 1 ? 'DETROIT CARGO' : 'VALENCIA ARCHIVE',
+    }
+  })
 
   // Direct smooth scroll jump to New Arrivals unboxed state (Frame 366+)
   const scrollToNewArrivals = () => {

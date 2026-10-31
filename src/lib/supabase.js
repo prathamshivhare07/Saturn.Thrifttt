@@ -58,6 +58,15 @@ export async function fetchRemoteRelics() {
           parsedImages = [r.img]
         }
 
+        const realParsed = parsedImages.filter((img) => img && !img.includes('AB6AXuBpMwMxh5Dfy'))
+        if (realParsed.length > 0) {
+          parsedImages = realParsed
+        }
+
+        const cover = (parsedImages.length > 0 && !parsedImages[0].includes('AB6AXuBpMwMxh5Dfy'))
+          ? parsedImages[0]
+          : (r.img && !r.img.includes('AB6AXuBpMwMxh5Dfy') ? r.img : (parsedImages[0] || ''))
+
         return {
           id: r.id,
           lot: r.lot,
@@ -70,7 +79,7 @@ export async function fetchRemoteRelics() {
           barcode: r.barcode,
           measurements: r.measurements,
           desc: cleanDesc,
-          img: parsedImages[0] || r.img || '',
+          img: cover,
           images: parsedImages,
           isSold: Boolean(r.is_sold),
         }
@@ -83,14 +92,53 @@ export async function fetchRemoteRelics() {
   }
 }
 
+export async function syncSingleRelicToRemote(r) {
+  if (!isSupabaseConfigured || !supabase || !r?.id) return
+  try {
+    const allImages = (Array.isArray(r.images) && r.images.length > 0
+      ? r.images
+      : (r.img ? [r.img] : [])
+    ).filter((img) => img && !img.includes('AB6AXuBpMwMxh5Dfy'))
+
+    const primaryImg = allImages[0] || (r.img && !r.img.includes('AB6AXuBpMwMxh5Dfy') ? r.img : '')
+    let serializedDesc = (r.desc || '').replace(/<!--VAULT_IMAGES_JSON:.*?-->/g, '').trim()
+    if (allImages.length > 1) {
+      serializedDesc += '\n<!--VAULT_IMAGES_JSON:' + JSON.stringify(allImages) + '-->'
+    }
+
+    const row = {
+      id: r.id,
+      lot: r.lot,
+      category: r.category || 'tees',
+      badge: r.badge || '✦ 1-OF-1 ONLY',
+      title: r.title,
+      price: Number(r.price),
+      year: r.year,
+      tag: r.tag,
+      barcode: r.barcode,
+      measurements: r.measurements,
+      desc: serializedDesc,
+      img: primaryImg,
+      is_sold: Boolean(r.isSold),
+    }
+
+    const { error } = await supabase.from('relics').upsert([row], { onConflict: 'id' })
+    if (error) console.error('[SUPABASE] Upsert single relic error:', error.message)
+  } catch (err) {
+    console.error('[SUPABASE] Error syncing single relic:', err)
+  }
+}
+
 export async function syncAllRelicsToRemote(relics) {
   if (!isSupabaseConfigured || !supabase || !relics?.length) return
   try {
     const dbRows = relics.map((r) => {
-      const allImages = Array.isArray(r.images) && r.images.length > 0
+      const allImages = (Array.isArray(r.images) && r.images.length > 0
         ? r.images
         : (r.img ? [r.img] : [])
-      const primaryImg = allImages[0] || r.img || ''
+      ).filter((img) => img && !img.includes('AB6AXuBpMwMxh5Dfy'))
+
+      const primaryImg = allImages[0] || (r.img && !r.img.includes('AB6AXuBpMwMxh5Dfy') ? r.img : '')
       let serializedDesc = (r.desc || '').replace(/<!--VAULT_IMAGES_JSON:.*?-->/g, '').trim()
       if (allImages.length > 1) {
         serializedDesc += '\n<!--VAULT_IMAGES_JSON:' + JSON.stringify(allImages) + '-->'

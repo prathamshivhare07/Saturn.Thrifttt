@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react'
-import { deleteRemoteRelic, insertRemoteOrder } from '../lib/supabase'
+import { deleteRemoteRelic, insertRemoteOrder, syncSingleRelicToRemote } from '../lib/supabase'
 
 export const FALLBACK_RELIC_IMG = 'https://lh3.googleusercontent.com/aida-public/AB6AXuBpMwMxh5Dfy-4OXiZB9iIedGEl9ZyTLWyayX6rhafm2EvBgYqGNmVvDcNqnRwoHWfLY2Yn5sfvNNoCG5JVgamSUfXtvPtoL1vXdOBFbJmfsktcjarJTA2aAcd19WCO4h08SyFQZAbFqQ5pTgAAOHVHD9-0vFr3SdHzveYB2ElCzQtFVvHmjqWbZZNQyaB4cIxXyQcxu_-oJYsZe9waOqqnBn1blc2eSnJIjMoLjQA'
 
-// Compress and downscale uploaded photo to keep payload light (~50KB) and preserve quality
-function compressImage(file, maxWidth = 1000, maxHeight = 1000, quality = 0.82) {
+// Compress and downscale uploaded photo to keep payload light (~40KB) and preserve quality
+function compressImage(file, maxWidth = 900, maxHeight = 900, quality = 0.75) {
   return new Promise((resolve) => {
     if (!file) return resolve('')
     if (file.type === 'image/svg+xml') {
@@ -193,10 +193,11 @@ export default function AdminDashboardModal({
       const compressedList = await Promise.all(files.map((f) => compressImage(f)))
       const valid = compressedList.filter(Boolean)
       setNewRelicImages((prev) => {
-        const combined = [...prev, ...valid]
+        const cleanPrev = prev.filter((img) => img && !img.includes('AB6AXuBpMwMxh5Dfy'))
+        const combined = [...cleanPrev, ...valid]
         setNewRelic((p) => ({
           ...p,
-          img: combined[0] || p.img || '',
+          img: combined[0] || '',
           images: combined,
         }))
         return combined
@@ -275,20 +276,28 @@ export default function AdminDashboardModal({
       return
     }
 
-    const allImgs = newRelicImages.length > 0 ? newRelicImages : (newRelic.img ? [newRelic.img] : [])
-    const primaryImg = allImgs[0] || FALLBACK_RELIC_IMG
+    const allImgs = (newRelicImages.length > 0 ? newRelicImages : (newRelic.img ? [newRelic.img] : []))
+      .filter((img) => img && !img.includes('AB6AXuBpMwMxh5Dfy'))
+
+    if (allImgs.length === 0) {
+      alert('Please upload at least 1 photo for this relic.')
+      return
+    }
+
+    const primaryImg = allImgs[0]
 
     const createdRelic = {
       id: `relic-${Date.now()}`,
       ...newRelic,
       img: primaryImg,
-      images: allImgs.length > 0 ? allImgs : [primaryImg],
+      images: allImgs,
       price: Number(newRelic.price),
       barcode: `BARCODE: |||| |||| ${Math.floor(100 + Math.random() * 900)}`,
     }
 
     const updated = [createdRelic, ...relics]
     onUpdateRelics(updated)
+    syncSingleRelicToRemote(createdRelic)
 
     setFormSuccess(`✦ Success! "${newRelic.title}" published to live store catalog with ${createdRelic.images.length} photos.`)
     setTimeout(() => setFormSuccess(''), 4000)
@@ -316,11 +325,17 @@ export default function AdminDashboardModal({
   // EDIT EXISTING RELIC HANDLERS
   // ============================================================
   const handleStartEdit = (relic) => {
-    const images = Array.isArray(relic.images) && relic.images.length > 0
+    const rawImages = Array.isArray(relic.images) && relic.images.length > 0
       ? [...relic.images]
       : (relic.img ? [relic.img] : [])
-    setEditingRelic({ ...relic, images })
-    setEditRelicImages(images)
+
+    // Filter out fallback placeholder so real photos are preserved cleanly
+    const realImages = rawImages.filter(
+      (img) => img && !img.includes('AB6AXuBpMwMxh5Dfy')
+    )
+
+    setEditingRelic({ ...relic, img: realImages[0] || '', images: realImages })
+    setEditRelicImages(realImages)
     setActiveTab('inventory')
   }
 
@@ -338,10 +353,11 @@ export default function AdminDashboardModal({
       const compressedList = await Promise.all(files.map((f) => compressImage(f)))
       const valid = compressedList.filter(Boolean)
       setEditRelicImages((prev) => {
-        const combined = [...prev, ...valid]
+        const cleanPrev = prev.filter((img) => img && !img.includes('AB6AXuBpMwMxh5Dfy'))
+        const combined = [...cleanPrev, ...valid]
         setEditingRelic((p) => ({
           ...p,
-          img: combined[0] || p.img || '',
+          img: combined[0] || '',
           images: combined,
         }))
         return combined
@@ -401,8 +417,10 @@ export default function AdminDashboardModal({
       return
     }
 
-    const allImgs = editRelicImages.length > 0 ? editRelicImages : (editingRelic.img ? [editingRelic.img] : [])
-    const primaryImg = allImgs[0] || FALLBACK_RELIC_IMG
+    const allImgs = (editRelicImages.length > 0 ? editRelicImages : (editingRelic.img ? [editingRelic.img] : []))
+      .filter((img) => img && !img.includes('AB6AXuBpMwMxh5Dfy'))
+
+    const primaryImg = allImgs[0] || (editingRelic.img && !editingRelic.img.includes('AB6AXuBpMwMxh5Dfy') ? editingRelic.img : '') || FALLBACK_RELIC_IMG
 
     const updatedRelic = {
       ...editingRelic,
@@ -413,6 +431,7 @@ export default function AdminDashboardModal({
 
     const updated = relics.map((r) => (r.id === updatedRelic.id ? updatedRelic : r))
     onUpdateRelics(updated)
+    syncSingleRelicToRemote(updatedRelic)
 
     setFormSuccess(`✦ Success! "${updatedRelic.title}" updated in live vault catalog with ${updatedRelic.images.length} photos.`)
     setTimeout(() => setFormSuccess(''), 4000)
