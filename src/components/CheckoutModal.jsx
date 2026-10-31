@@ -13,15 +13,15 @@ export default function CheckoutModal({
   const [step, setStep] = useState(1) // 1: Shipping, 2: Payment Rail, 3: Confirmation
   const [paymentRail, setPaymentRail] = useState('upi') // Only 2 options: 'upi', 'cod'
 
-  // Shipping Form State (prefill if logged in)
+  // Shipping Form State (clean empty inputs ready for real collector details)
   const [shippingData, setShippingData] = useState({
-    fullName: currentUser?.name || 'Pratham Sharma',
-    email: currentUser?.email || 'pratham@saturn.archive',
-    phone: currentUser?.phone || '+91 93299 93116',
-    street: currentUser?.address?.street || 'Arera Colony',
-    city: currentUser?.address?.city || 'Bhopal',
-    state: currentUser?.address?.state || 'Madhya Pradesh',
-    pincode: currentUser?.address?.pincode || '462016',
+    fullName: currentUser?.name && currentUser.name !== 'PRATHAM SHARMA' ? currentUser.name : '',
+    email: currentUser?.email && currentUser.email !== 'pratham@saturn.archive' ? currentUser.email : '',
+    phone: currentUser?.phone || '',
+    street: currentUser?.address?.street && !currentUser.address.street.includes('Penthouse 4B') ? currentUser.address.street : '',
+    city: currentUser?.address?.city || '',
+    state: currentUser?.address?.state || '',
+    pincode: currentUser?.address?.pincode || '',
     country: 'India',
   })
 

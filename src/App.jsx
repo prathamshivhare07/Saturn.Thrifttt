@@ -668,11 +668,36 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState(() => {
     try {
       const saved = localStorage.getItem('saturn_auth_user')
-      return saved ? JSON.parse(saved) : null
+      if (saved) {
+        const parsed = JSON.parse(saved)
+        // Automatically purge false mock/demo user (PRATHAM SHARMA, Bangalore Penthouse, ORD-8812)
+        if (
+          parsed.id === 'user-demo-8409' ||
+          parsed.email === 'pratham@saturn.archive' ||
+          parsed.name === 'PRATHAM SHARMA' ||
+          parsed.address?.street?.includes('Penthouse 4B')
+        ) {
+          localStorage.removeItem('saturn_auth_user')
+          return null
+        }
+        return parsed
+      }
+      return null
     } catch {
       return null
     }
   })
+
+  // Purge any stored demo mock users from registered users list
+  useEffect(() => {
+    try {
+      const savedUsers = JSON.parse(localStorage.getItem('saturn_registered_users') || '[]')
+      const cleanUsers = savedUsers.filter(
+        (u) => u.id !== 'user-demo-8409' && u.email !== 'pratham@saturn.archive' && u.name !== 'PRATHAM SHARMA'
+      )
+      localStorage.setItem('saturn_registered_users', JSON.stringify(cleanUsers))
+    } catch {}
+  }, [])
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false)
   const [isCheckoutModalOpen, setIsCheckoutModalOpen] = useState(false)
 
@@ -701,11 +726,11 @@ export default function App() {
       date: order.date || new Date().toLocaleString('en-IN'),
       shipping: order.shipping || {
         fullName: currentUser?.name || 'Walk-in Collector',
-        phone: currentUser?.phone || '+91 93299 93116',
-        street: 'Arera Colony',
-        city: 'Bhopal',
-        state: 'Madhya Pradesh',
-        pincode: '462016',
+        phone: currentUser?.phone || '',
+        street: '',
+        city: '',
+        state: '',
+        pincode: '',
       },
       items: order.items || [],
       subtotal: order.subtotal || order.total,

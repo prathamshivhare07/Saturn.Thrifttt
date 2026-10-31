@@ -65,15 +65,11 @@ export default function AuthModal({
         id: `user-${Date.now()}`,
         name: handle,
         email: normalizedEmail,
-        phone: '+91 93299 93116',
+        phone: '',
         tier: '✦ VERIFIED VAULT ARCHIVIST',
-        memberSince: 'OCT 2026',
-        address: {
-          street: 'Arera Colony',
-          city: 'Bhopal',
-          state: 'Madhya Pradesh',
-          pincode: '462016',
-        },
+        memberSince: new Date().toLocaleDateString('en-US', { month: 'short', year: 'numeric' }).toUpperCase(),
+        address: null,
+        measurements: null,
         orders: [],
       }
       savedUsers.push(authenticatedUser)
@@ -225,44 +221,6 @@ export default function AuthModal({
     }
   }
 
-  // Fast 1-click Demo Login
-  const handleDemoLogin = () => {
-    const demoUser = {
-      id: 'user-demo-8409',
-      name: 'PRATHAM SHARMA',
-      email: 'pratham@saturn.archive',
-      phone: '+91 93299 93116',
-      tier: '✦ VIP ORBIT COLLECTOR',
-      memberSince: 'JAN 2026',
-      address: {
-        street: 'Penthouse 4B, 1990s Heritage Tower',
-        city: 'Bengaluru',
-        state: 'Karnataka',
-        pincode: '560001',
-      },
-      orders: [
-        {
-          id: 'ORD-8812',
-          date: 'OCT 22, 2026',
-          lot: 'LOT #0942',
-          item: 'Detroit Duck Canvas Jacket (SZ XL)',
-          price: 180,
-          status: 'In Transit // Out for Delivery',
-        },
-        {
-          id: 'ORD-7291',
-          date: 'SEP 14, 2026',
-          lot: 'LOT #0938',
-          item: '1991 Levi 501 Valencia Button 555',
-          price: 135,
-          status: 'Delivered · Verified Authentic',
-        },
-      ],
-    }
-    onLogin(demoUser)
-    onClose()
-  }
-
   return (
     <div className="auth-modal-backdrop" onClick={onClose}>
       <div className="auth-modal-panel" onClick={(e) => e.stopPropagation()}>
@@ -356,21 +314,6 @@ export default function AuthModal({
                       ? 'DISPATCHING PASSCODE...'
                       : 'GET 4-DIGIT ACCESS PASSCODE'}
                   </span>
-                </button>
-
-                <div className="auth-divider">
-                  <span>OR FAST TESTING ACCESS</span>
-                </div>
-
-                <button
-                  type="button"
-                  className="btn-auth-demo"
-                  onClick={handleDemoLogin}
-                >
-                  <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#e5a93c' }}>
-                    flash_on
-                  </span>
-                  <span>1-Click VIP Demo Archivist Login</span>
                 </button>
 
                 {/* Email Perks Strip */}
@@ -493,13 +436,13 @@ export default function AuthModal({
                 {currentUser.name ? currentUser.name.slice(0, 2).toUpperCase() : 'AR'}
               </div>
               <div className="profile-identity">
-                <div className="profile-name">{currentUser.name}</div>
+                <div className="profile-name">{currentUser.name || 'ARCHIVIST'}</div>
                 <div className="profile-email">
-                  {currentUser.email} · {currentUser.phone}
+                  {currentUser.email}{currentUser.phone ? ` · ${currentUser.phone}` : ''}
                 </div>
                 <div className="profile-tier-tag">
                   <span className="pulse-dot" />
-                  <span>{currentUser.tier || '✦ ORBIT ARCHIVIST'}</span>
+                  <span>{currentUser.tier || '✦ VERIFIED VAULT ARCHIVIST'}</span>
                 </div>
               </div>
             </div>
@@ -513,17 +456,22 @@ export default function AuthModal({
               <div className="profile-metrics-grid">
                 <div className="metric-box">
                   <span className="metric-label">PREFERRED P2P</span>
-                  <span className="metric-val">22" - 24"</span>
+                  <span className="metric-val">{currentUser.measurements?.p2p || '—'}</span>
                 </div>
                 <div className="metric-box">
                   <span className="metric-label">WAIST FIT</span>
-                  <span className="metric-val">32 - 34</span>
+                  <span className="metric-val">{currentUser.measurements?.waist || '—'}</span>
                 </div>
                 <div className="metric-box">
                   <span className="metric-label">HOODIE GSM</span>
-                  <span className="metric-val">450 GSM+</span>
+                  <span className="metric-val">{currentUser.measurements?.gsm || '—'}</span>
                 </div>
               </div>
+              {!currentUser.measurements?.p2p && !currentUser.measurements?.waist && !currentUser.measurements?.gsm && (
+                <div style={{ marginTop: 8, fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--outline)' }}>
+                  No custom fit specifications recorded yet.
+                </div>
+              )}
             </div>
 
             {/* Saved Delivery Address */}
@@ -532,9 +480,15 @@ export default function AuthModal({
                 <span className="material-symbols-outlined" style={{ fontSize: 16 }}>home_pin</span>
                 <span>DEFAULT VAULT DISPATCH ADDRESS</span>
               </div>
-              <div className="profile-address-text">
-                {currentUser.address?.street}, {currentUser.address?.city}, {currentUser.address?.state} - {currentUser.address?.pincode}
-              </div>
+              {currentUser.address?.street ? (
+                <div className="profile-address-text">
+                  {[currentUser.address?.street, currentUser.address?.city, currentUser.address?.state, currentUser.address?.pincode].filter(Boolean).join(', ')}
+                </div>
+              ) : (
+                <div style={{ padding: '6px 0', fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--outline)' }}>
+                  No default dispatch address saved yet.
+                </div>
+              )}
             </div>
 
             {/* Order History */}
@@ -552,14 +506,14 @@ export default function AuthModal({
                           {ord.id} · {ord.lot}
                         </div>
                         <div style={{ fontFamily: 'var(--font-display)', fontSize: 14, fontWeight: 600 }}>
-                          {ord.item}
+                          {ord.item || ord.title}
                         </div>
                         <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#16a34a', marginTop: 2 }}>
                           ✦ {ord.status}
                         </div>
                       </div>
                       <div style={{ fontFamily: 'var(--font-mono)', fontSize: 14, fontWeight: 700 }}>
-                        ₹{Number(ord.price || 0).toLocaleString('en-IN')}
+                        ₹{Number(ord.price || ord.total || 0).toLocaleString('en-IN')}
                       </div>
                     </div>
                   ))}
