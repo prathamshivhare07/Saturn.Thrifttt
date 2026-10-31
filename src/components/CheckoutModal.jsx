@@ -17,7 +17,7 @@ export default function CheckoutModal({
   const [shippingData, setShippingData] = useState({
     fullName: currentUser?.name || 'Pratham Sharma',
     email: currentUser?.email || 'pratham@saturn.archive',
-    phone: currentUser?.phone || '+91 98765 43210',
+    phone: currentUser?.phone || '+91 93299 93116',
     street: currentUser?.address?.street || 'Arera Colony',
     city: currentUser?.address?.city || 'Bhopal',
     state: currentUser?.address?.state || 'Madhya Pradesh',
@@ -26,7 +26,9 @@ export default function CheckoutModal({
   })
 
   // YouPI-PG Sovereign UPI & COD Token Configuration
-  const youpiVpa = storeSettings?.upiVpa || import.meta.env.VITE_YOUPI_UPI_VPA || 'saturn.thrift@okhdfcbank'
+  const youpiVpa = (storeSettings?.upiVpa && !storeSettings.upiVpa.includes('okhdfcbank'))
+    ? storeSettings.upiVpa
+    : (import.meta.env.VITE_YOUPI_UPI_VPA || '9329993116@kotakbank')
   const codPercent = storeSettings?.codTokenPercent || 30
   const [upiUtrNumber, setUpiUtrNumber] = useState('')
   const [codTokenUtr, setCodTokenUtr] = useState('')

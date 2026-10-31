@@ -65,7 +65,7 @@ export default function AuthModal({
         id: `user-${Date.now()}`,
         name: handle,
         email: normalizedEmail,
-        phone: '+91 98765 43210',
+        phone: '+91 93299 93116',
         tier: '✦ VERIFIED VAULT ARCHIVIST',
         memberSince: 'OCT 2026',
         address: {
@@ -231,7 +231,7 @@ export default function AuthModal({
       id: 'user-demo-8409',
       name: 'PRATHAM SHARMA',
       email: 'pratham@saturn.archive',
-      phone: '+91 98765 43210',
+      phone: '+91 93299 93116',
       tier: '✦ VIP ORBIT COLLECTOR',
       memberSince: 'JAN 2026',
       address: {
