@@ -261,12 +261,16 @@ export async function fetchRemoteOrders() {
 }
 
 export async function insertRemoteOrder(order) {
-  if (!isSupabaseConfigured || !supabase) return
+  if (!isSupabaseConfigured || !supabase) return { success: false, error: 'Supabase not configured' }
   try {
     const row = {
       id: order.id,
       date: order.date,
-      shipping: order.shipping,
+      shipping: {
+        ...(typeof order.shipping === 'object' ? order.shipping : {}),
+        deliveryFee: Number(order.deliveryFee || 0),
+        isFreeDelivery: Boolean(order.isFreeDelivery),
+      },
       items: order.items,
       subtotal: Number(order.subtotal || order.total),
       discount: Number(order.discount || 0),
@@ -279,10 +283,16 @@ export async function insertRemoteOrder(order) {
       status: order.status || 'Processing // Authentication',
     }
 
-    const { error } = await supabase.from('orders').upsert(row, { onConflict: 'id' })
-    if (error) console.error('[SUPABASE] Insert order error:', error.message)
+    const { data, error } = await supabase.from('orders').upsert(row, { onConflict: 'id' }).select()
+    if (error) {
+      console.error('[SUPABASE] Insert order error:', error.message)
+      return { success: false, error: error.message }
+    }
+    console.log('[SUPABASE] Order synced to cloud database:', order.id)
+    return { success: true, data }
   } catch (err) {
     console.error('[SUPABASE] Error saving order:', err)
+    return { success: false, error: err.message }
   }
 }
 

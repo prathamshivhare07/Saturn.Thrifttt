@@ -4,9 +4,9 @@ import {
   insertRemoteOrder,
   syncSingleRelicToRemote,
   updateRemoteRelicSoldStatus,
+  fetchRemoteOrders,
+  FALLBACK_RELIC_IMG,
 } from '../lib/supabase'
-
-export const FALLBACK_RELIC_IMG = 'https://lh3.googleusercontent.com/aida-public/AB6AXuBpMwMxh5Dfy-4OXiZB9iIedGEl9ZyTLWyayX6rhafm2EvBgYqGNmVvDcNqnRwoHWfLY2Yn5sfvNNoCG5JVgamSUfXtvPtoL1vXdOBFbJmfsktcjarJTA2aAcd19WCO4h08SyFQZAbFqQ5pTgAAOHVHD9-0vFr3SdHzveYB2ElCzQtFVvHmjqWbZZNQyaB4cIxXyQcxu_-oJYsZe9waOqqnBn1blc2eSnJIjMoLjQA'
 
 // Compress and downscale uploaded photo to keep payload light (~18KB) and preserve quality
 function compressImage(file, maxWidth = 720, maxHeight = 720, quality = 0.68) {
@@ -110,6 +110,34 @@ export default function AdminDashboardModal({
   // Order Search & Filter State
   const [orderSearch, setOrderSearch] = useState('')
   const [orderStatusFilter, setOrderStatusFilter] = useState('all')
+  const [isRefreshingOrders, setIsRefreshingOrders] = useState(false)
+  const [ordersFeedback, setOrdersFeedback] = useState('')
+
+  const handleRefreshOrders = async () => {
+    setIsRefreshingOrders(true)
+    setOrdersFeedback('')
+    try {
+      const fresh = await fetchRemoteOrders()
+      if (fresh && Array.isArray(fresh)) {
+        if (onUpdateOrders) {
+          onUpdateOrders(fresh)
+        }
+        setOrdersFeedback(`✓ Synced ${fresh.length} orders from Supabase cloud database`)
+        setTimeout(() => setOrdersFeedback(''), 4000)
+      }
+    } catch (err) {
+      console.warn('[ADMIN] Error refreshing orders:', err)
+    } finally {
+      setIsRefreshingOrders(false)
+    }
+  }
+
+  // Auto-sync orders whenever Curator Desk or Orders tab is opened
+  useEffect(() => {
+    if (isOpen && activeTab === 'orders') {
+      handleRefreshOrders()
+    }
+  }, [isOpen, activeTab])
 
   // Selected Order for Full Dossier Inspector Modal
   const [selectedOrder, setSelectedOrder] = useState(null)
@@ -1608,8 +1636,50 @@ export default function AdminDashboardModal({
                         <option value="Dispatched">Dispatched</option>
                         <option value="Delivered">Delivered</option>
                       </select>
+
+                      <button
+                        type="button"
+                        onClick={handleRefreshOrders}
+                        disabled={isRefreshingOrders}
+                        className="btn-admin-refresh"
+                        title="Fetch latest orders from Supabase"
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 6,
+                          padding: '7px 12px',
+                          backgroundColor: 'var(--surface-container-highest)',
+                          border: '1px solid var(--outline)',
+                          fontFamily: 'var(--font-mono)',
+                          fontSize: 11,
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          color: 'var(--primary)',
+                          borderRadius: 2,
+                        }}
+                      >
+                        <span className="material-symbols-outlined" style={{ fontSize: 14 }}>
+                          {isRefreshingOrders ? 'hourglass_top' : 'sync'}
+                        </span>
+                        <span>{isRefreshingOrders ? 'SYNCING...' : 'REFRESH ORDERS'}</span>
+                      </button>
                     </div>
                   </div>
+
+                  {ordersFeedback && (
+                    <div style={{
+                      backgroundColor: '#f0fdf4',
+                      border: '1px solid #bbf7d0',
+                      color: '#166534',
+                      padding: '8px 12px',
+                      fontFamily: 'var(--font-mono)',
+                      fontSize: 11,
+                      fontWeight: 700,
+                      marginBottom: 12,
+                    }}>
+                      {ordersFeedback}
+                    </div>
+                  )}
 
                   {allOrders.length === 0 ? (
                     <div style={{ textAlign: 'center', padding: '40px 0', fontFamily: 'var(--font-mono)', color: 'var(--outline)' }}>

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 export default function CheckoutModal({
   isOpen,
@@ -9,6 +9,7 @@ export default function CheckoutModal({
   onOrderComplete,
   storeSettings,
   activeOffers = [],
+  onRequireLogin,
 }) {
   const [step, setStep] = useState(1) // 1: Dispatch, 2: Payment (UPI), 3: Confirmation
 
@@ -23,6 +24,22 @@ export default function CheckoutModal({
     pincode: currentUser?.address?.pincode || '',
     country: 'India',
   })
+
+  // Synchronize shipping fields whenever the logged-in user changes
+  useEffect(() => {
+    if (currentUser) {
+      setShippingData((prev) => ({
+        ...prev,
+        fullName: currentUser.name && currentUser.name !== 'PRATHAM SHARMA' ? currentUser.name : prev.fullName,
+        email: currentUser.email && currentUser.email !== 'pratham@saturn.archive' ? currentUser.email : prev.email,
+        phone: currentUser.phone || prev.phone,
+        street: currentUser.address?.street && !currentUser.address.street.includes('Penthouse 4B') ? currentUser.address.street : prev.street,
+        city: currentUser.address?.city || prev.city,
+        state: currentUser.address?.state || prev.state,
+        pincode: currentUser.address?.pincode || prev.pincode,
+      }))
+    }
+  }, [currentUser])
 
   // YouPI-PG Sovereign UPI Configuration
   const youpiVpa = (storeSettings?.upiVpa && !storeSettings.upiVpa.includes('okhdfcbank'))
@@ -67,6 +84,11 @@ export default function CheckoutModal({
 
   const handleProceedToPayment = (e) => {
     e.preventDefault()
+    if (!currentUser) {
+      setErrorMessage('Collector authentication required. Please sign in with your email passcode.')
+      if (onRequireLogin) onRequireLogin()
+      return
+    }
     if (!shippingData.fullName || !shippingData.phone || !shippingData.street || !shippingData.city) {
       setErrorMessage('Please fill in complete delivery details.')
       return
@@ -76,7 +98,13 @@ export default function CheckoutModal({
   }
 
   // Process payment submission
-  const handlePayNow = () => {
+  const handlePayNow = async () => {
+    if (!currentUser) {
+      setErrorMessage('Collector authentication required. Please sign in before proceeding.')
+      if (onRequireLogin) onRequireLogin()
+      return
+    }
+
     const cleanUtr = (upiUtrNumber || '').trim().replace(/\D/g, '')
     if (!cleanUtr) {
       setErrorMessage('Please enter the 12-digit UPI Bank UTR / Reference number from your payment app receipt.')
@@ -90,33 +118,52 @@ export default function CheckoutModal({
     setIsProcessing(true)
     setErrorMessage('')
 
-    setTimeout(() => {
-      const orderId = `SAT-${Math.floor(100000 + Math.random() * 900000)}`
-      const newOrder = {
-        id: orderId,
-        date: new Date().toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric' }).toUpperCase(),
-        items: [...cart],
-        subtotal: cartTotal,
-        discount: discountAmount,
-        couponCode: appliedCoupon?.code || null,
-        deliveryFee: deliveryFee,
-        isFreeDelivery: isFreeDelivery,
-        total: finalTotal,
-        paymentRail: 'Instant Sovereign UPI (0% Fee)',
-        utrNumber: cleanUtr,
-        shipping: shippingData,
-        status: 'Paid & Authenticated via YouPI-PG (0% Fee) // Dispatched',
-      }
+    const orderId = `SAT-${Math.floor(100000 + Math.random() * 900000)}`
+    const cleanItems = (cart || []).map((it) => ({
+      id: it.id,
+      lot: it.lot || 'LOT #ARCHIVE',
+      title: it.title,
+      tag: it.tag || '',
+      price: Number(it.price),
+      img: (it.images && it.images[0]) || it.img || '',
+    }))
 
+    const newOrder = {
+      id: orderId,
+      date: new Date().toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric' }).toUpperCase(),
+      items: cleanItems,
+      subtotal: cartTotal,
+      discount: discountAmount,
+      couponCode: appliedCoupon?.code || null,
+      deliveryFee: deliveryFee,
+      isFreeDelivery: isFreeDelivery,
+      total: finalTotal,
+      paymentRail: 'Instant Sovereign UPI (0% Fee)',
+      utrNumber: cleanUtr,
+      shipping: {
+        ...shippingData,
+        fullName: currentUser?.name || shippingData.fullName,
+        email: currentUser?.email || shippingData.email,
+      },
+      status: 'Paid & Authenticated via YouPI-PG (0% Fee) // Dispatched',
+    }
+
+    try {
+      localStorage.setItem('saturn_customer_has_ordered', 'true')
+    } catch {}
+
+    // Await database write to Supabase before rendering confirmation
+    if (onOrderComplete) {
       try {
-        localStorage.setItem('saturn_customer_has_ordered', 'true')
-      } catch {}
+        await onOrderComplete(newOrder)
+      } catch (orderErr) {
+        console.warn('[ORDER] Error persisting order to cloud:', orderErr)
+      }
+    }
 
-      setCompletedOrder(newOrder)
-      setIsProcessing(false)
-      setStep(3)
-      onOrderComplete(newOrder)
-    }, 1200)
+    setCompletedOrder(newOrder)
+    setIsProcessing(false)
+    setStep(3)
   }
 
   return (
@@ -145,111 +192,156 @@ export default function CheckoutModal({
         {/* STEP 1: SHIPPING & DISPATCH */}
         {step === 1 && (
           <div className="checkout-body-grid">
-            <form onSubmit={handleProceedToPayment} className="checkout-form-col">
+            <div className="checkout-form-col">
               <div className="checkout-section-title">
                 <span className="material-symbols-outlined" style={{ fontSize: 18 }}>local_shipping</span>
                 <span>PAN-INDIA DISPATCH SPECIFICATIONS</span>
               </div>
 
-              {currentUser && (
-                <div className="checkout-auth-banner">
-                  <span className="material-symbols-outlined" style={{ fontSize: 16, color: 'var(--primary)' }}>verified</span>
-                  <span>Logged in as <strong>{currentUser.name}</strong> · Address pre-filled from your collector pass</span>
+              {!currentUser ? (
+                <div style={{
+                  backgroundColor: '#fff8f3',
+                  border: '2px solid #1a1715',
+                  padding: '36px 20px',
+                  textAlign: 'center',
+                  margin: '12px 0 24px 0',
+                }}>
+                  <div style={{
+                    width: 52,
+                    height: 52,
+                    borderRadius: '50%',
+                    backgroundColor: '#1a1715',
+                    color: '#fff8f3',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    margin: '0 auto 14px auto',
+                  }}>
+                    <span className="material-symbols-outlined" style={{ fontSize: 26 }}>lock</span>
+                  </div>
+                  <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--primary)', fontWeight: 800, letterSpacing: '0.1em' }}>
+                    ✦ ARCHIVE SECURITY CHECKPOINT
+                  </div>
+                  <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 20, margin: '6px 0 8px 0', fontWeight: 700 }}>
+                    COLLECTOR PASSCODE REQUIRED
+                  </h3>
+                  <p style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--on-surface-variant)', maxWidth: 400, margin: '0 auto 18px auto', lineHeight: 1.5 }}>
+                    To order 1-of-1 archival relics and receive automated dispatch notifications, please sign in with your email address.
+                  </p>
+                  <button
+                    type="button"
+                    className="btn-pay-submit"
+                    style={{ maxWidth: 300, margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+                    onClick={() => {
+                      onClose()
+                      if (onRequireLogin) onRequireLogin()
+                    }}
+                  >
+                    <span className="material-symbols-outlined" style={{ fontSize: 18 }}>key</span>
+                    <span>GET 4-DIGIT EMAIL PASSCODE</span>
+                  </button>
                 </div>
+              ) : (
+                <form onSubmit={handleProceedToPayment}>
+                  <div className="checkout-auth-banner">
+                    <span className="material-symbols-outlined" style={{ fontSize: 16, color: 'var(--primary)' }}>verified</span>
+                    <span>Logged in as <strong>{currentUser.name}</strong> ({currentUser.email})</span>
+                  </div>
+
+                  {errorMessage && <div className="checkout-alert-error">{errorMessage}</div>}
+
+                  <div className="checkout-field-group">
+                    <label htmlFor="chk-fullName">Recipient Full Name</label>
+                    <input
+                      id="chk-fullName"
+                      name="fullName"
+                      type="text"
+                      value={shippingData.fullName}
+                      onChange={handleShippingChange}
+                      required
+                    />
+                  </div>
+
+                  <div className="checkout-field-row">
+                    <div className="checkout-field-group">
+                      <label htmlFor="chk-phone">WhatsApp Contact Number</label>
+                      <input
+                        id="chk-phone"
+                        name="phone"
+                        type="text"
+                        value={shippingData.phone}
+                        onChange={handleShippingChange}
+                        required
+                      />
+                    </div>
+                    <div className="checkout-field-group">
+                      <label htmlFor="chk-email">Email (Vault Manifest)</label>
+                      <input
+                        id="chk-email"
+                        name="email"
+                        type="email"
+                        value={shippingData.email}
+                        onChange={handleShippingChange}
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div className="checkout-field-group">
+                    <label htmlFor="chk-street">Street Address &amp; Studio / Apartment #</label>
+                    <input
+                      id="chk-street"
+                      name="street"
+                      type="text"
+                      value={shippingData.street}
+                      onChange={handleShippingChange}
+                      required
+                    />
+                  </div>
+
+                  <div className="checkout-field-row">
+                    <div className="checkout-field-group">
+                      <label htmlFor="chk-city">City</label>
+                      <input
+                        id="chk-city"
+                        name="city"
+                        type="text"
+                        value={shippingData.city}
+                        onChange={handleShippingChange}
+                        required
+                      />
+                    </div>
+                    <div className="checkout-field-group">
+                      <label htmlFor="chk-state">State</label>
+                      <input
+                        id="chk-state"
+                        name="state"
+                        type="text"
+                        value={shippingData.state}
+                        onChange={handleShippingChange}
+                        required
+                      />
+                    </div>
+                    <div className="checkout-field-group">
+                      <label htmlFor="chk-pincode">PIN Code</label>
+                      <input
+                        id="chk-pincode"
+                        name="pincode"
+                        type="text"
+                        value={shippingData.pincode}
+                        onChange={handleShippingChange}
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <button type="submit" className="btn-checkout-next">
+                    <span>Continue to Payment (Instant UPI)</span>
+                    <span className="material-symbols-outlined" style={{ fontSize: 18 }}>arrow_forward</span>
+                  </button>
+                </form>
               )}
-
-              {errorMessage && <div className="checkout-alert-error">{errorMessage}</div>}
-
-              <div className="checkout-field-group">
-                <label htmlFor="chk-fullName">Recipient Full Name</label>
-                <input
-                  id="chk-fullName"
-                  name="fullName"
-                  type="text"
-                  value={shippingData.fullName}
-                  onChange={handleShippingChange}
-                  required
-                />
-              </div>
-
-              <div className="checkout-field-row">
-                <div className="checkout-field-group">
-                  <label htmlFor="chk-phone">WhatsApp Contact Number</label>
-                  <input
-                    id="chk-phone"
-                    name="phone"
-                    type="text"
-                    value={shippingData.phone}
-                    onChange={handleShippingChange}
-                    required
-                  />
-                </div>
-                <div className="checkout-field-group">
-                  <label htmlFor="chk-email">Email (Vault Manifest)</label>
-                  <input
-                    id="chk-email"
-                    name="email"
-                    type="email"
-                    value={shippingData.email}
-                    onChange={handleShippingChange}
-                    required
-                  />
-                </div>
-              </div>
-
-              <div className="checkout-field-group">
-                <label htmlFor="chk-street">Street Address &amp; Studio / Apartment #</label>
-                <input
-                  id="chk-street"
-                  name="street"
-                  type="text"
-                  value={shippingData.street}
-                  onChange={handleShippingChange}
-                  required
-                />
-              </div>
-
-              <div className="checkout-field-row">
-                <div className="checkout-field-group">
-                  <label htmlFor="chk-city">City</label>
-                  <input
-                    id="chk-city"
-                    name="city"
-                    type="text"
-                    value={shippingData.city}
-                    onChange={handleShippingChange}
-                    required
-                  />
-                </div>
-                <div className="checkout-field-group">
-                  <label htmlFor="chk-state">State</label>
-                  <input
-                    id="chk-state"
-                    name="state"
-                    type="text"
-                    value={shippingData.state}
-                    onChange={handleShippingChange}
-                    required
-                  />
-                </div>
-                <div className="checkout-field-group">
-                  <label htmlFor="chk-pincode">PIN Code</label>
-                  <input
-                    id="chk-pincode"
-                    name="pincode"
-                    type="text"
-                    value={shippingData.pincode}
-                    onChange={handleShippingChange}
-                    required
-                  />
-                </div>
-              </div>
-
-              <button type="submit" className="btn-checkout-next">
-                <span>Continue to Payment (Instant UPI)</span>
-                <span className="material-symbols-outlined" style={{ fontSize: 18 }}>arrow_forward</span>
-              </button>
-            </form>
+            </div>
 
             {/* Order Manifest Summary Sidebar */}
             <div className="checkout-manifest-col">

@@ -650,6 +650,18 @@ export default function App() {
 
   const [isAdminOpen, setIsAdminOpen] = useState(false)
 
+  // Whenever Curator Desk is opened, auto-sync latest orders directly from Supabase
+  useEffect(() => {
+    if (isAdminOpen) {
+      fetchRemoteOrders().then((remoteOrders) => {
+        if (remoteOrders && Array.isArray(remoteOrders)) {
+          setAllOrders(remoteOrders)
+          safeSetLocalStorage('saturn_all_orders', JSON.stringify(remoteOrders))
+        }
+      })
+    }
+  }, [isAdminOpen])
+
   // Secret Logo & Copyright triple-click counter to open Curator Desk
   const logoClicksRef = useRef(0)
   const logoClickTimerRef = useRef(null)
@@ -924,6 +936,12 @@ export default function App() {
   const handleLogin = (user) => {
     setCurrentUser(user)
     localStorage.setItem('saturn_auth_user', JSON.stringify(user))
+    // Seamless progression: If user had items in cart when prompted to login, auto-open checkout
+    if (cart.length > 0) {
+      setTimeout(() => {
+        setIsCheckoutModalOpen(true)
+      }, 350)
+    }
   }
 
   const handleLogout = () => {
@@ -931,7 +949,7 @@ export default function App() {
     localStorage.removeItem('saturn_auth_user')
   }
 
-  const handleOrderComplete = (order) => {
+  const handleOrderComplete = async (order) => {
     // 1. Mark purchased relics as SOLD OUT immediately for all collectors
     const purchasedIds = new Set((order.items || []).map((i) => i.id))
     const updatedRelics = relics.map((r) => (purchasedIds.has(r.id) ? { ...r, isSold: true } : r))
@@ -943,13 +961,14 @@ export default function App() {
       localStorage.removeItem('saturn_cart_stack')
     } catch {}
 
-    // Log to Curator Central telemetry
+    // Log to Curator Central telemetry with clean payload
     const newOrderRecord = {
       id: order.id,
       date: order.date || new Date().toLocaleString('en-IN'),
       shipping: order.shipping || {
         fullName: currentUser?.name || 'Walk-in Collector',
         phone: currentUser?.phone || '',
+        email: currentUser?.email || '',
         street: '',
         city: '',
         state: '',
@@ -960,7 +979,7 @@ export default function App() {
       discount: order.discount || 0,
       couponCode: order.couponCode || 'NONE',
       deliveryFee: typeof order.deliveryFee === 'number' ? order.deliveryFee : 0,
-      isFirstOrder: Boolean(order.isFirstOrder),
+      isFreeDelivery: Boolean(order.isFreeDelivery),
       total: order.total,
       paymentRail: order.paymentRail || 'Instant Sovereign UPI (0% Fee)',
       utrNumber: order.utrNumber || 'N/A',
@@ -968,8 +987,15 @@ export default function App() {
     }
     const updatedOrders = [newOrderRecord, ...allOrders]
     setAllOrders(updatedOrders)
-    localStorage.setItem('saturn_all_orders', JSON.stringify(updatedOrders))
-    insertRemoteOrder(newOrderRecord)
+    safeSetLocalStorage('saturn_all_orders', JSON.stringify(updatedOrders))
+
+    // Await cloud sync to Supabase so the order is committed
+    try {
+      await insertRemoteOrder(newOrderRecord)
+      console.log('[ORDER COMPLETE] Cloud write confirmed for', newOrderRecord.id)
+    } catch (syncErr) {
+      console.error('[ORDER SYNC ERROR]', syncErr)
+    }
 
     if (currentUser) {
       const updatedUser = {
@@ -2224,7 +2250,11 @@ export default function App() {
                 id="btn-proceed-checkout"
                 onClick={() => {
                   setIsCartOpen(false)
-                  setIsCheckoutModalOpen(true)
+                  if (!currentUser) {
+                    setIsAuthModalOpen(true)
+                  } else {
+                    setIsCheckoutModalOpen(true)
+                  }
                 }}
                 disabled={cart.length === 0}
               >
@@ -2257,6 +2287,10 @@ export default function App() {
         onOrderComplete={handleOrderComplete}
         storeSettings={storeSettings}
         activeOffers={activeOffers}
+        onRequireLogin={() => {
+          setIsCheckoutModalOpen(false)
+          setIsAuthModalOpen(true)
+        }}
       />
 
       {/* Curator Command Center (Admin Dashboard) */}
