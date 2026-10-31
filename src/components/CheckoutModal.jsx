@@ -10,8 +10,7 @@ export default function CheckoutModal({
   storeSettings,
   activeOffers = [],
 }) {
-  const [step, setStep] = useState(1) // 1: Shipping, 2: Payment Rail, 3: Confirmation
-  const [paymentRail, setPaymentRail] = useState('upi') // Only 2 options: 'upi', 'cod'
+  const [step, setStep] = useState(1) // 1: Dispatch, 2: Payment (UPI), 3: Confirmation
 
   // Shipping Form State (clean empty inputs ready for real collector details)
   const [shippingData, setShippingData] = useState({
@@ -25,14 +24,21 @@ export default function CheckoutModal({
     country: 'India',
   })
 
-  // YouPI-PG Sovereign UPI & COD Token Configuration
+  // YouPI-PG Sovereign UPI Configuration
   const youpiVpa = (storeSettings?.upiVpa && !storeSettings.upiVpa.includes('okhdfcbank'))
     ? storeSettings.upiVpa
     : (import.meta.env.VITE_YOUPI_UPI_VPA || '9329993116@kotakbank')
-  const codPercent = storeSettings?.codTokenPercent || 30
   const [upiUtrNumber, setUpiUtrNumber] = useState('')
-  const [codTokenUtr, setCodTokenUtr] = useState('')
   const [copiedVpa, setCopiedVpa] = useState(false)
+
+  // Delivery Charges & First Order Free Logic
+  const standardDeliveryFee = Number(storeSettings?.deliveryFee ?? 120)
+  const hasPriorOrders = Boolean(
+    (currentUser?.orders && currentUser.orders.length > 0) ||
+    (typeof window !== 'undefined' && localStorage.getItem('saturn_customer_has_ordered') === 'true')
+  )
+  const isFirstOrder = !hasPriorOrders
+  const deliveryFee = isFirstOrder ? 0 : standardDeliveryFee
 
   // Promo Code / Coupon Offer State
   const [couponCode, setCouponCode] = useState('')
@@ -48,11 +54,7 @@ export default function CheckoutModal({
       discountAmount = appliedCoupon.value
     }
   }
-  const finalTotal = Math.max(0, cartTotal - discountAmount)
-
-  // COD Calculations based on configured percentage
-  const codTokenAmount = Math.round(finalTotal * (codPercent / 100))
-  const codBalanceAmount = finalTotal - codTokenAmount
+  const finalTotal = Math.max(0, cartTotal - discountAmount + deliveryFee)
 
   // Payment processing states
   const [isProcessing, setIsProcessing] = useState(false)
@@ -78,13 +80,8 @@ export default function CheckoutModal({
 
   // Process payment submission
   const handlePayNow = () => {
-    if (paymentRail === 'upi' && (!upiUtrNumber || upiUtrNumber.length < 6)) {
+    if (!upiUtrNumber || upiUtrNumber.length < 6) {
       setErrorMessage('Please enter your 12-digit UPI Bank UTR / Reference ID from your payment receipt.')
-      return
-    }
-
-    if (paymentRail === 'cod' && (!codTokenUtr || codTokenUtr.length < 6)) {
-      setErrorMessage(`Please enter the 12-digit Bank UTR for your ${codPercent}% advance reservation token.`)
       return
     }
 
@@ -93,7 +90,6 @@ export default function CheckoutModal({
 
     setTimeout(() => {
       const orderId = `SAT-${Math.floor(100000 + Math.random() * 900000)}`
-      const activeUtr = paymentRail === 'upi' ? upiUtrNumber : codTokenUtr
       const newOrder = {
         id: orderId,
         date: new Date().toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric' }).toUpperCase(),
@@ -101,16 +97,18 @@ export default function CheckoutModal({
         subtotal: cartTotal,
         discount: discountAmount,
         couponCode: appliedCoupon?.code || null,
+        deliveryFee: deliveryFee,
+        isFirstOrder: isFirstOrder,
         total: finalTotal,
-        paymentRail: paymentRail === 'upi' ? 'YouPI-PG Sovereign UPI' : 'Cash On Delivery (COD)',
-        utrNumber: activeUtr,
-        codTokenAmount: paymentRail === 'cod' ? codTokenAmount : null,
-        codBalanceAmount: paymentRail === 'cod' ? codBalanceAmount : null,
+        paymentRail: 'Instant Sovereign UPI (0% Fee)',
+        utrNumber: upiUtrNumber,
         shipping: shippingData,
-        status: paymentRail === 'cod'
-          ? `COD Confirmed · ${codPercent}% Token (₹${codTokenAmount.toLocaleString('en-IN')}) Secured · Balance ₹${codBalanceAmount.toLocaleString('en-IN')} Due on Delivery`
-          : 'Paid & Authenticated via YouPI-PG (0% Fee) // Dispatched',
+        status: 'Paid & Authenticated via YouPI-PG (0% Fee) // Dispatched',
       }
+
+      try {
+        localStorage.setItem('saturn_customer_has_ordered', 'true')
+      } catch {}
 
       setCompletedOrder(newOrder)
       setIsProcessing(false)
@@ -127,7 +125,7 @@ export default function CheckoutModal({
           <div className="checkout-step-indicator">
             <span className={`step-dot ${step === 1 ? 'active' : step > 1 ? 'done' : ''}`}>1. Dispatch</span>
             <span className="step-arrow">→</span>
-            <span className={`step-dot ${step === 2 ? 'active' : step > 2 ? 'done' : ''}`}>2. Payment (UPI / COD)</span>
+            <span className={`step-dot ${step === 2 ? 'active' : step > 2 ? 'done' : ''}`}>2. Payment (Instant UPI)</span>
             <span className="step-arrow">→</span>
             <span className={`step-dot ${step === 3 ? 'active done' : ''}`}>3. Confirmation</span>
           </div>
@@ -246,7 +244,7 @@ export default function CheckoutModal({
               </div>
 
               <button type="submit" className="btn-checkout-next">
-                <span>Continue to Payment (UPI / COD)</span>
+                <span>Continue to Payment (Instant UPI)</span>
                 <span className="material-symbols-outlined" style={{ fontSize: 18 }}>arrow_forward</span>
               </button>
             </form>
@@ -288,10 +286,21 @@ export default function CheckoutModal({
                   <span>Reinforced Kraft Tube:</span>
                   <span style={{ color: '#16a34a' }}>COMPLIMENTARY</span>
                 </div>
+
                 <div className="manifest-row">
-                  <span>Pan-India Transit:</span>
-                  <span style={{ color: '#16a34a' }}>FREE // FAST DISPATCH</span>
+                  <span>Express Air Delivery:</span>
+                  {isFirstOrder ? (
+                    <span>
+                      <span style={{ textDecoration: 'line-through', color: 'var(--outline)', marginRight: 6 }}>
+                        ₹{standardDeliveryFee}
+                      </span>
+                      <strong style={{ color: '#16a34a' }}>FREE (First Order Privilege ✦)</strong>
+                    </span>
+                  ) : (
+                    <span style={{ fontWeight: 700 }}>₹{standardDeliveryFee}</span>
+                  )}
                 </div>
+
                 <div className="manifest-total-highlight">
                   <span>TOTAL DISPATCH:</span>
                   <span>₹{finalTotal.toLocaleString('en-IN')}</span>
@@ -303,7 +312,7 @@ export default function CheckoutModal({
                 <div style={{ display: 'flex', gap: 6 }}>
                   <input
                     type="text"
-                    placeholder="PROMO CODE (e.g. SATURN10)"
+                    placeholder="PROMO CODE (e.g. SATURN15)"
                     value={couponCode}
                     onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
                     disabled={!!appliedCoupon}
@@ -357,237 +366,94 @@ export default function CheckoutModal({
           </div>
         )}
 
-        {/* STEP 2: PAYMENT RAIL SELECTION (ONLY UPI & COD) */}
+        {/* STEP 2: PAYMENT VIA INSTANT SOVEREIGN UPI */}
         {step === 2 && (
           <div className="checkout-body-grid">
             <div className="checkout-form-col">
               <div className="checkout-section-title">
                 <span className="material-symbols-outlined" style={{ fontSize: 18 }}>payment</span>
-                <span>SELECT PAYMENT METHOD</span>
+                <span>INSTANT SOVEREIGN UPI GATEWAY</span>
               </div>
 
               {errorMessage && <div className="checkout-alert-error">{errorMessage}</div>}
 
-              {/* 2 Primary Payment Options: UPI and COD */}
-              <div className="payment-rails-grid">
-                {/* Option 1: YouPI-PG 0% Fee Instant UPI */}
-                <div
-                  className={`payment-rail-card ${paymentRail === 'upi' ? 'selected' : ''}`}
-                  onClick={() => {
-                    setPaymentRail('upi')
-                    setErrorMessage('')
-                  }}
-                >
-                  <div className="rail-radio-row">
-                    <input
-                      type="radio"
-                      name="paymentRail"
-                      checked={paymentRail === 'upi'}
-                      onChange={() => setPaymentRail('upi')}
-                    />
-                    <span className="rail-title">Instant UPI &amp; QR</span>
+              {/* UPI Detail Panel */}
+              <div className="rail-detail-box" style={{ border: 'none', padding: 0 }}>
+                <div className="upi-input-panel">
+                  <div className="youpi-status-strip">
+                    <div className="youpi-badge-tag">
+                      <span className="material-symbols-outlined" style={{ fontSize: 15, color: '#16a34a' }}>verified_user</span>
+                      <span>YOUPI-PG SOVEREIGN GATEWAY</span>
+                    </div>
+                    <span className="youpi-zero-fee-pill">DIRECT BANK SETTLEMENT · ZERO FEES</span>
                   </div>
-                  <span className="rail-caption">
-                    Zero gateway cut · GPay, PhonePe, Paytm, CRED · Instant bank settlement
-                  </span>
-                  <div className="rail-chips">
-                    <span className="rail-chip" style={{ color: '#16a34a', borderColor: '#16a34a' }}>
-                      0% PLATFORM FEE
+
+                  {/* VPA Display with Copy */}
+                  <div className="checkout-field-group" style={{ marginTop: 12 }}>
+                    <label>Vault Recipient UPI Address (VPA)</label>
+                    <div className="youpi-vpa-copy-bar">
+                      <span className="youpi-vpa-text">{youpiVpa}</span>
+                      <button
+                        type="button"
+                        className="btn-copy-vpa"
+                        onClick={() => {
+                          navigator.clipboard.writeText(youpiVpa)
+                          setCopiedVpa(true)
+                          setTimeout(() => setCopiedVpa(false), 2000)
+                        }}
+                      >
+                        <span className="material-symbols-outlined" style={{ fontSize: 13 }}>
+                          {copiedVpa ? 'check' : 'content_copy'}
+                        </span>
+                        <span>{copiedVpa ? 'COPIED!' : 'COPY VPA'}</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Dynamic Real QR Code & Mobile Deep Link */}
+                  <div className="upi-qr-preview youpi-qr-box">
+                    <div className="qr-img-wrapper">
+                      <img
+                        src={`https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(`upi://pay?pa=${youpiVpa}&pn=SATURN%20THRIFTTT&am=${finalTotal}&cu=INR&tn=VAULT-ORDER`)}&bgcolor=fff8f3&color=1a1715`}
+                        alt="YouPI-PG Dynamic UPI QR Code"
+                        className="youpi-live-qr-img"
+                      />
+                    </div>
+                    <div className="qr-meta" style={{ flex: 1 }}>
+                      <div style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 800, color: 'var(--on-surface)' }}>
+                        Scan to Pay Total: ₹{finalTotal.toLocaleString('en-IN')}
+                      </div>
+                      <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--on-surface-variant)', marginTop: 2 }}>
+                        Instant checkout with Google Pay, PhonePe, Paytm, CRED, or BHIM.
+                      </div>
+                      <a
+                        href={`upi://pay?pa=${encodeURIComponent(youpiVpa)}&pn=${encodeURIComponent('SATURN THRIFTTT')}&am=${finalTotal}&cu=INR&tn=${encodeURIComponent('VAULT-ORDER')}`}
+                        className="btn-youpi-deeplink"
+                      >
+                        <span className="material-symbols-outlined" style={{ fontSize: 15 }}>bolt</span>
+                        <span>Tap to Open UPI App on Mobile</span>
+                      </a>
+                    </div>
+                  </div>
+
+                  {/* 12-Digit Bank UTR Input */}
+                  <div className="checkout-field-group" style={{ marginTop: 14 }}>
+                    <div className="checkout-field-label-row">
+                      <label htmlFor="chk-utr">12-Digit Bank UTR / Reference ID</label>
+                    </div>
+                    <input
+                      id="chk-utr"
+                      type="text"
+                      maxLength={12}
+                      placeholder="e.g. 430198234812 (from UPI app transaction receipt)"
+                      value={upiUtrNumber}
+                      onChange={(e) => setUpiUtrNumber(e.target.value.replace(/\D/g, ''))}
+                    />
+                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9.5, color: 'var(--on-surface-variant)' }}>
+                      YouPI-PG verifies this 12-digit bank reference with incoming account credits to confirm your order instantly with 0% platform fee.
                     </span>
-                    <span className="rail-chip">₹{finalTotal.toLocaleString('en-IN')}</span>
                   </div>
                 </div>
-
-                {/* Option 2: Cash On Delivery (COD) with Configurable Token */}
-                <div
-                  className={`payment-rail-card ${paymentRail === 'cod' ? 'selected' : ''}`}
-                  onClick={() => {
-                    setPaymentRail('cod')
-                    setErrorMessage('')
-                  }}
-                >
-                  <div className="rail-radio-row">
-                    <input
-                      type="radio"
-                      name="paymentRail"
-                      checked={paymentRail === 'cod'}
-                      onChange={() => setPaymentRail('cod')}
-                    />
-                    <span className="rail-title">Cash On Delivery (COD)</span>
-                  </div>
-                  <span className="rail-caption">
-                    Pay {codPercent}% advance token now, balance {100 - codPercent}% cash/UPI upon doorstep unboxing
-                  </span>
-                  <div className="rail-chips">
-                    <span className="rail-chip" style={{ color: '#d97706', borderColor: '#d97706' }}>
-                      {codPercent}% TOKEN (₹{codTokenAmount.toLocaleString('en-IN')})
-                    </span>
-                    <span className="rail-chip" style={{ color: '#16a34a', borderColor: '#16a34a' }}>
-                      DOORSTEP INSPECTION
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Sub-Form Based on Rail */}
-              <div className="rail-detail-box">
-                {/* UPI DETAIL PANEL */}
-                {paymentRail === 'upi' && (
-                  <div className="upi-input-panel">
-                    <div className="youpi-status-strip">
-                      <div className="youpi-badge-tag">
-                        <span className="material-symbols-outlined" style={{ fontSize: 15, color: '#16a34a' }}>verified_user</span>
-                        <span>YOUPI-PG SOVEREIGN GATEWAY</span>
-                      </div>
-                      <span className="youpi-zero-fee-pill">0% COMMISSIONS · DIRECT BANK SETTLEMENT</span>
-                    </div>
-
-                    {/* VPA Display with Copy */}
-                    <div className="checkout-field-group" style={{ marginTop: 12 }}>
-                      <label>Vault Recipient UPI Address (VPA)</label>
-                      <div className="youpi-vpa-copy-bar">
-                        <span className="youpi-vpa-text">{youpiVpa}</span>
-                        <button
-                          type="button"
-                          className="btn-copy-vpa"
-                          onClick={() => {
-                            navigator.clipboard.writeText(youpiVpa)
-                            setCopiedVpa(true)
-                            setTimeout(() => setCopiedVpa(false), 2000)
-                          }}
-                        >
-                          <span className="material-symbols-outlined" style={{ fontSize: 13 }}>
-                            {copiedVpa ? 'check' : 'content_copy'}
-                          </span>
-                          <span>{copiedVpa ? 'COPIED!' : 'COPY VPA'}</span>
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Dynamic Real QR Code & Mobile Deep Link */}
-                    <div className="upi-qr-preview youpi-qr-box">
-                      <div className="qr-img-wrapper">
-                        <img
-                          src={`https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(`upi://pay?pa=${youpiVpa}&pn=SATURN%20THRIFTTT&am=${finalTotal}&cu=INR&tn=VAULT-ORDER`)}&bgcolor=fff8f3&color=1a1715`}
-                          alt="YouPI-PG Dynamic UPI QR Code"
-                          className="youpi-live-qr-img"
-                        />
-                      </div>
-                      <div className="qr-meta" style={{ flex: 1 }}>
-                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 800, color: 'var(--on-surface)' }}>
-                          Scan to Pay Full Amount: ₹{finalTotal.toLocaleString('en-IN')}
-                        </div>
-                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--on-surface-variant)', marginTop: 2 }}>
-                          Instant checkout with Google Pay, PhonePe, Paytm, CRED, or BHIM.
-                        </div>
-                        <a
-                          href={`upi://pay?pa=${encodeURIComponent(youpiVpa)}&pn=${encodeURIComponent('SATURN THRIFTTT')}&am=${finalTotal}&cu=INR&tn=${encodeURIComponent('VAULT-ORDER')}`}
-                          className="btn-youpi-deeplink"
-                        >
-                          <span className="material-symbols-outlined" style={{ fontSize: 15 }}>bolt</span>
-                          <span>Tap to Open UPI App on Mobile</span>
-                        </a>
-                      </div>
-                    </div>
-
-                    {/* 12-Digit Bank UTR Input */}
-                    <div className="checkout-field-group" style={{ marginTop: 14 }}>
-                      <div className="checkout-field-label-row">
-                        <label htmlFor="chk-utr">12-Digit Bank UTR / Reference ID</label>
-                      </div>
-                      <input
-                        id="chk-utr"
-                        type="text"
-                        maxLength={12}
-                        placeholder="e.g. 430198234812 (from UPI app transaction receipt)"
-                        value={upiUtrNumber}
-                        onChange={(e) => setUpiUtrNumber(e.target.value.replace(/\D/g, ''))}
-                      />
-                      <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9.5, color: 'var(--on-surface-variant)' }}>
-                        YouPI-PG matches this 12-digit bank reference with incoming account credits to verify payment instantly with 0% gateway cut.
-                      </span>
-                    </div>
-                  </div>
-                )}
-
-                {/* COD DETAIL PANEL */}
-                {paymentRail === 'cod' && (
-                  <div className="cod-info-panel">
-                    <div className="youpi-status-strip" style={{ marginBottom: 12 }}>
-                      <div className="youpi-badge-tag">
-                        <span className="material-symbols-outlined" style={{ fontSize: 15, color: '#d97706' }}>local_shipping</span>
-                        <span>CASH ON DELIVERY ({codPercent}% RESERVATION TOKEN)</span>
-                      </div>
-                      <span className="youpi-zero-fee-pill" style={{ color: '#d97706', background: '#fef3c7', borderColor: '#d97706' }}>
-                        {codPercent}% ADVANCE TOKEN REQUIRED
-                      </span>
-                    </div>
-
-                    {/* Transparent COD Breakdown Box */}
-                    <div className="cod-breakdown-box">
-                      <div className="cod-breakdown-row">
-                        <span>Total Order Valuation:</span>
-                        <span>₹{finalTotal.toLocaleString('en-IN')}</span>
-                      </div>
-                      <div className="cod-breakdown-row highlight-token">
-                        <span>✦ {codPercent}% Advance Token (Pay Now to Reserve):</span>
-                        <span style={{ color: 'var(--primary)', fontWeight: 800 }}>₹{codTokenAmount.toLocaleString('en-IN')}</span>
-                      </div>
-                      <div className="cod-breakdown-row">
-                        <span>Balance Due on Doorstep (Cash or UPI):</span>
-                        <span style={{ color: '#16a34a', fontWeight: 800 }}>₹{codBalanceAmount.toLocaleString('en-IN')}</span>
-                      </div>
-                    </div>
-
-                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--on-surface-variant)', margin: '10px 0 12px 0', lineHeight: 1.5 }}>
-                      To protect authentic 1-of-1 vintage relics from courier delays and false bookings, a {codPercent}% reservation token is collected upfront. The remaining {100 - codPercent}% is collected at your doorstep during unboxing and fit-check.
-                    </div>
-
-                    {/* Token Payment via Dynamic QR */}
-                    <div className="upi-qr-preview youpi-qr-box">
-                      <div className="qr-img-wrapper">
-                        <img
-                          src={`https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(`upi://pay?pa=${youpiVpa}&pn=SATURN%20THRIFTTT&am=${codTokenAmount}&cu=INR&tn=COD-${codPercent}PCT-TOKEN`)}&bgcolor=fff8f3&color=1a1715`}
-                          alt="Token QR Code"
-                          className="youpi-live-qr-img"
-                        />
-                      </div>
-                      <div className="qr-meta" style={{ flex: 1 }}>
-                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 800, color: 'var(--on-surface)' }}>
-                          Scan to Pay {codPercent}% Token: ₹{codTokenAmount.toLocaleString('en-IN')}
-                        </div>
-                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--on-surface-variant)', marginTop: 2 }}>
-                          Balance ₹{codBalanceAmount.toLocaleString('en-IN')} payable at delivery.
-                        </div>
-                        <a
-                          href={`upi://pay?pa=${encodeURIComponent(youpiVpa)}&pn=${encodeURIComponent('SATURN THRIFTTT')}&am=${codTokenAmount}&cu=INR&tn=COD-${codPercent}PCT-TOKEN`}
-                          className="btn-youpi-deeplink"
-                        >
-                          <span className="material-symbols-outlined" style={{ fontSize: 15 }}>bolt</span>
-                          <span>Pay ₹{codTokenAmount.toLocaleString('en-IN')} Token via UPI</span>
-                        </a>
-                      </div>
-                    </div>
-
-                    {/* UTR Input for Token */}
-                    <div className="checkout-field-group" style={{ marginTop: 14 }}>
-                      <div className="checkout-field-label-row">
-                        <label htmlFor="chk-cod-utr">12-Digit Token Bank UTR / Reference ID</label>
-                      </div>
-                      <input
-                        id="chk-cod-utr"
-                        type="text"
-                        maxLength={12}
-                        placeholder="e.g. 430198234812 (from token payment receipt)"
-                        value={codTokenUtr}
-                        onChange={(e) => setCodTokenUtr(e.target.value.replace(/\D/g, ''))}
-                      />
-                      <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9.5, color: 'var(--on-surface-variant)' }}>
-                        Enter the 12-digit UTR from your ₹{codTokenAmount.toLocaleString('en-IN')} token payment to confirm your delivery booking.
-                      </span>
-                    </div>
-                  </div>
-                )}
               </div>
 
               {/* Action Buttons */}
@@ -614,15 +480,13 @@ export default function CheckoutModal({
                   <span>
                     {isProcessing
                       ? 'Authenticating & Locking...'
-                      : paymentRail === 'cod'
-                      ? `Confirm COD (Pay ₹${codTokenAmount.toLocaleString('en-IN')} Token)`
-                      : `Pay Total ₹${finalTotal.toLocaleString('en-IN')}`}
+                      : `Authenticate & Pay ₹${finalTotal.toLocaleString('en-IN')}`}
                   </span>
                 </button>
               </div>
             </div>
 
-            {/* Sidebar Summary */}
+            {/* Step 2 Sidebar Summary */}
             <div className="checkout-manifest-col">
               <div className="manifest-header">
                 <span>DESTINATION &amp; MANIFEST</span>
@@ -641,25 +505,36 @@ export default function CheckoutModal({
 
               <div className="manifest-totals-box" style={{ marginTop: 16 }}>
                 <div className="manifest-row">
-                  <span>Selected Rail:</span>
-                  <span style={{ textTransform: 'uppercase', fontWeight: 700 }}>
-                    {paymentRail === 'upi' ? 'Instant UPI (0% Fee)' : `COD (${codPercent}% Token)`}
+                  <span>Payment Method:</span>
+                  <span style={{ textTransform: 'uppercase', fontWeight: 700, color: '#16a34a' }}>
+                    Instant Sovereign UPI
                   </span>
                 </div>
-                {paymentRail === 'cod' && (
-                  <>
-                    <div className="manifest-row" style={{ color: 'var(--primary)', fontWeight: 700 }}>
-                      <span>{codPercent}% Token Now:</span>
-                      <span>₹{codTokenAmount.toLocaleString('en-IN')}</span>
-                    </div>
-                    <div className="manifest-row" style={{ color: '#16a34a', fontWeight: 700 }}>
-                      <span>Balance on Delivery:</span>
-                      <span>₹{codBalanceAmount.toLocaleString('en-IN')}</span>
-                    </div>
-                  </>
+                <div className="manifest-row">
+                  <span>Vault Subtotal:</span>
+                  <span>₹{cartTotal.toLocaleString('en-IN')}</span>
+                </div>
+                {appliedCoupon && (
+                  <div className="manifest-row" style={{ color: '#16a34a', fontWeight: 700 }}>
+                    <span>Coupon ({appliedCoupon.code}):</span>
+                    <span>-₹{discountAmount.toLocaleString('en-IN')}</span>
+                  </div>
                 )}
+                <div className="manifest-row">
+                  <span>Pan-India Delivery:</span>
+                  {isFirstOrder ? (
+                    <span style={{ color: '#16a34a', fontWeight: 700 }}>
+                      <span style={{ textDecoration: 'line-through', color: 'var(--outline)', marginRight: 4 }}>
+                        ₹{standardDeliveryFee}
+                      </span>
+                      FREE (1st Order ✦)
+                    </span>
+                  ) : (
+                    <span style={{ fontWeight: 700 }}>₹{standardDeliveryFee}</span>
+                  )}
+                </div>
                 <div className="manifest-total-highlight">
-                  <span>TOTAL ORDER:</span>
+                  <span>TOTAL PAYABLE:</span>
                   <span>₹{finalTotal.toLocaleString('en-IN')}</span>
                 </div>
               </div>
@@ -717,29 +592,28 @@ export default function CheckoutModal({
                   <span>₹{it.price.toLocaleString('en-IN')}</span>
                 </div>
               ))}
+              {completedOrder.discount > 0 && (
+                <div className="table-row" style={{ color: '#16a34a' }}>
+                  <span>Coupon Discount ({completedOrder.couponCode || 'PROMO'}):</span>
+                  <span>-₹{completedOrder.discount.toLocaleString('en-IN')}</span>
+                </div>
+              )}
+              <div className="table-row">
+                <span>Pan-India Air Express Delivery:</span>
+                <span style={{ color: completedOrder.deliveryFee === 0 ? '#16a34a' : 'inherit', fontWeight: completedOrder.deliveryFee === 0 ? 700 : 'normal' }}>
+                  {completedOrder.deliveryFee === 0 ? 'FREE (First Order Privilege ✦)' : `₹${completedOrder.deliveryFee}`}
+                </span>
+              </div>
               <div className="table-footer-row">
-                <span>Total Order Value:</span>
+                <span>Total Amount Paid:</span>
                 <span>₹{completedOrder.total.toLocaleString('en-IN')}</span>
               </div>
 
-              {completedOrder.codTokenAmount ? (
-                <>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--primary)', borderTop: '1px dashed var(--outline-variant)' }}>
-                    <span>{codPercent}% Advance Token Paid (UPI):</span>
-                    <span>₹{completedOrder.codTokenAmount.toLocaleString('en-IN')} [UTR #{completedOrder.utrNumber}]</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 800, color: '#16a34a' }}>
-                    <span>Remaining Balance on Doorstep:</span>
-                    <span>₹{completedOrder.codBalanceAmount.toLocaleString('en-IN')} (Cash/UPI upon delivery)</span>
-                  </div>
-                </>
-              ) : (
-                completedOrder.utrNumber && (
-                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', fontFamily: 'var(--font-mono)', fontSize: 11, color: '#16a34a', borderTop: '1px dashed var(--outline-variant)' }}>
-                    <span>Bank UTR Reconciliation:</span>
-                    <span>[ UTR #{completedOrder.utrNumber} · FULL PAYMENT SETTLED (0% FEE) ]</span>
-                  </div>
-                )
+              {completedOrder.utrNumber && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', fontFamily: 'var(--font-mono)', fontSize: 11, color: '#16a34a', borderTop: '1px dashed var(--outline-variant)' }}>
+                  <span>Bank UTR Reconciliation:</span>
+                  <span>[ UTR #{completedOrder.utrNumber} · FULL PAYMENT SETTLED (0% FEE) ]</span>
+                </div>
               )}
             </div>
 

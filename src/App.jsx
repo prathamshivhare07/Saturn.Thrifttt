@@ -265,7 +265,7 @@ const DEFAULT_OFFERS = [
 const DEFAULT_STORE_SETTINGS = {
   storeName: 'SATURN.THRIFTTT',
   upiVpa: '9329993116@kotakbank',
-  codTokenPercent: 30,
+  deliveryFee: 120,
   whatsappNumber: '+919329993116',
   storeLocation: 'Arera Colony, Bhopal, MP 462016',
   supportEmail: 'curator@saturnthrift.in',
@@ -736,12 +736,12 @@ export default function App() {
       subtotal: order.subtotal || order.total,
       discount: order.discount || 0,
       couponCode: order.couponCode || 'NONE',
+      deliveryFee: typeof order.deliveryFee === 'number' ? order.deliveryFee : 0,
+      isFirstOrder: Boolean(order.isFirstOrder),
       total: order.total,
-      paymentRail: order.paymentRail || (order.paymentMethod === 'cod' ? 'Cash on Delivery (COD)' : 'Instant UPI'),
-      codTokenAmount: order.codTokenAmount || 0,
-      codBalanceAmount: order.codBalanceAmount || 0,
+      paymentRail: order.paymentRail || 'Instant Sovereign UPI (0% Fee)',
       utrNumber: order.utrNumber || 'N/A',
-      status: 'Processing // Authentication',
+      status: 'Paid & Authenticated // Packaging',
     }
     const updatedOrders = [newOrderRecord, ...allOrders]
     setAllOrders(updatedOrders)
@@ -1331,17 +1331,17 @@ export default function App() {
           >
             <div className="second-screen-badge">
               <span className="pulse-beacon" />
-              <span>✦ CUSTOMER SERVICES // HELP & COD ✦</span>
+              <span>✦ CUSTOMER SERVICES // FIRST DELIVERY FREE ✦</span>
               <span className="star-icon">✦</span>
             </div>
 
             <h2 className="second-screen-heading">
-              SERVICES & SUPPORT <br />
-              <span className="italic-accent">WHATSAPP · INSTAGRAM · CASH ON DELIVERY</span>
+              SERVICES &amp; SUPPORT <br />
+              <span className="italic-accent">WHATSAPP · INSTAGRAM · FIRST DELIVERY FREE</span>
             </h2>
 
             <p className="second-screen-desc">
-              Have questions about sizing, fabric, or fit? Message us on WhatsApp or Instagram for quick help, live videos, and easy Cash on Delivery across India.
+              Have questions about sizing, fabric, or fit? Message us on WhatsApp or Instagram for quick help, live videos, and complimentary first delivery across India.
             </p>
 
             {/* 4 Store Service & Client Concierge Cards */}
@@ -1392,19 +1392,19 @@ export default function App() {
                 </a>
               </div>
 
-              {/* Service 3: COD Protocol & Inspection */}
+              {/* Service 3: First Delivery Free Privilege */}
               <div className="second-screen-card">
                 <span className="card-code-tag">
                   <span className="material-symbols-outlined" style={{ fontSize: 16 }}>local_shipping</span>
-                  <span>PAYMENT PROTOCOL</span>
+                  <span>DELIVERY PROTOCOL</span>
                 </span>
-                <span className="card-title">Cash On Delivery (COD)</span>
+                <span className="card-title">First Delivery Free (₹120 Off)</span>
                 <span className="card-caption">
-                  Available pan-India with a 30% advance reservation token. Balance 70% payable upon doorstep delivery & inspection.
+                  Complimentary pan-India air express delivery on your first order. Flat ₹120 standard delivery on subsequent drops.
                 </span>
                 <div className="card-info-chip">
                   <span className="material-symbols-outlined" style={{ fontSize: 13, color: '#16a34a' }}>check_circle</span>
-                  <span>Doorstep Inspection Allowed</span>
+                  <span>0% Delivery Fee on 1st Order</span>
                 </div>
               </div>
 
@@ -1876,9 +1876,9 @@ export default function App() {
                 </h5>
                 <ul className="footer-links-list">
                   <li><a href={`https://wa.me/${activeWhatsappClean}`} target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'none' }}>WhatsApp Help ({activeWhatsappNumber})</a></li>
-                  <li>Cash on Delivery (COD)</li>
-                  <li>Sizing & Fit Guide</li>
-                  <li>Return & Exchange Policy</li>
+                  <li>First Delivery Free (₹120 Flat)</li>
+                  <li>Sizing &amp; Fit Guide</li>
+                  <li>Return &amp; Exchange Policy</li>
                 </ul>
               </div>
 
@@ -1907,8 +1907,8 @@ export default function App() {
             </span>
             <div style={{ display: 'flex', gap: 20, alignItems: 'center' }}>
               <span>PAN-INDIA FAST DELIVERY</span>
-              <span>CASH ON DELIVERY AVAILABLE</span>
-              <span>TERMS & PRIVACY</span>
+              <span>FIRST DELIVERY FREE (₹120 STANDARD)</span>
+              <span>TERMS &amp; PRIVACY</span>
             </div>
           </div>
         </div>

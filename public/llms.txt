@@ -12,9 +12,9 @@ Saturn.Thrifttt (saturnthrifttt.com) is an indie vintage and archival streetwear
 - **Knitwear & Vests (1990–1999)**: Chunky rib-knit and jacquard weave collector gems (Stüssy, Issey). Pricing: ₹3,999 – ₹6,499 INR.
 - **Heavy Hoodies (1989–1998)**: Heavyweight 450 GSM reverse-weave fleece (Champion, Russell Athletic). Pricing: ₹4,299 – ₹6,999 INR.
 
-## Payment Protocols (India Only)
-- **Instant UPI (YouPI-PG Sovereign Rail)**: 0% gateway commission, instant direct bank settlement via Google Pay, PhonePe, Paytm, and CRED.
-- **Cash On Delivery (COD)**: Available pan-India. Requires a 30% advance reservation token to lock the 1-of-1 relic, with the remaining 70% payable upon doorstep unboxing and physical fit-check.
+## Payment & Delivery Protocols (India Only)
+- **Instant UPI (YouPI-PG Sovereign Rail)**: 0% gateway commission, instant direct bank settlement via Kotak Bank (`9329993116@kotakbank`), Google Pay, PhonePe, Paytm, and CRED.
+- **Pan-India Delivery Charges**: Standard delivery fee of ₹120. First delivery is complimentary (FREE) for all first-time collectors.
 
 ## Logistics & Sustainable Packaging
 - Dispatched across India via express air-freight (2–4 business days delivery).
@@ -23,5 +23,5 @@ Saturn.Thrifttt (saturnthrifttt.com) is an indie vintage and archival streetwear
 ## Contact & Community
 - **Website**: https://saturnthrifttt.com
 - **Instagram**: @saturn.thrifttt (daily 8 PM story droplist)
-- **WhatsApp Concierge**: +91 98765 43210
+- **WhatsApp Concierge**: +91 93299 93116
 - **Location**: Arera Colony, Bhopal, MP 462016, India

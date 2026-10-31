@@ -97,7 +97,7 @@ export function MobileLiteShowcase({
         </div>
         <div className="trust-item">
           <span className="material-symbols-outlined">local_shipping</span>
-          <span>COD Available</span>
+          <span>1st Delivery Free</span>
         </div>
         <div className="trust-item">
           <span className="material-symbols-outlined">bolt</span>
@@ -117,10 +117,10 @@ export function MobileServicesBar({ whatsappNumber = '+919329993116' }) {
         <span>✦ CLIENT CONCIERGE // PRIORITY DESK ✦</span>
       </div>
       <h3 className="mobile-services-heading">
-        AUTHENTICATED VINTAGE &amp; COD SUPPORT
+        AUTHENTICATED VINTAGE &amp; CLIENT CONCIERGE
       </h3>
       <p style={{ fontFamily: 'var(--font-mono)', fontSize: '11px', color: 'var(--on-surface-variant)', margin: '0 0 14px 0', lineHeight: 1.4 }}>
-        Direct styling desk for live videos, sizing checks, pit-to-pit measurements, and Cash on Delivery across India.
+        Direct styling desk for live videos, sizing checks, pit-to-pit measurements, and fast express dispatch across India.
       </p>
 
       <div className="mobile-services-grid">

@@ -79,6 +79,9 @@ export default function AdminDashboardModal({
     if (!s.whatsappNumber || s.whatsappNumber === '+91 98765 43210') {
       s.whatsappNumber = '+919329993116'
     }
+    if (s.deliveryFee === undefined) {
+      s.deliveryFee = 120
+    }
     return s
   })
   const [localBanner, setLocalBanner] = useState({ ...announcementBanner })
@@ -88,6 +91,7 @@ export default function AdminDashboardModal({
     if (storeSettings) {
       setLocalSettings({
         ...storeSettings,
+        deliveryFee: storeSettings.deliveryFee !== undefined ? storeSettings.deliveryFee : 120,
         upiVpa: (storeSettings.upiVpa && !storeSettings.upiVpa.includes('okhdfcbank'))
           ? storeSettings.upiVpa
           : (import.meta.env.VITE_YOUPI_UPI_VPA || '9329993116@kotakbank'),
@@ -1498,8 +1502,12 @@ export default function AdminDashboardModal({
                                 </div>
                               )}
                               <div className="dossier-fee-row">
-                                <span>Air-Freight Delivery &amp; Packaging:</span>
-                                <strong>FREE (Covered by Vault)</strong>
+                                <span>Pan-India Delivery Fee:</span>
+                                <strong>
+                                  {selectedOrder.deliveryFee === 0 || selectedOrder.isFirstOrder
+                                    ? 'FREE (1st Order Privilege ✦)'
+                                    : `₹${selectedOrder.deliveryFee || 120}`}
+                                </strong>
                               </div>
                               <div className="dossier-fee-row total-highlight">
                                 <span>Final Order Value:</span>
@@ -1645,14 +1653,14 @@ export default function AdminDashboardModal({
                     </div>
 
                     <div className="admin-form-field">
-                      <label>COD Advance Reservation Token (%)</label>
+                      <label>Standard Delivery Fee (₹) [1st Order Free]</label>
                       <input
                         type="number"
-                        min={10}
-                        max={50}
-                        value={localSettings.codTokenPercent}
-                        onChange={(e) => setLocalSettings({ ...localSettings, codTokenPercent: Number(e.target.value) })}
-                        placeholder="30"
+                        min={0}
+                        max={500}
+                        value={localSettings.deliveryFee !== undefined ? localSettings.deliveryFee : 120}
+                        onChange={(e) => setLocalSettings({ ...localSettings, deliveryFee: Number(e.target.value) })}
+                        placeholder="120"
                         required
                       />
                     </div>
