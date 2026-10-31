@@ -334,6 +334,7 @@ export default function App() {
       return DEFAULT_BANNER
     }
   })
+  const [isBannerDismissed, setIsBannerDismissed] = useState(false)
 
   const handleUpdateBanner = (banner) => {
     setAnnouncementBanner(banner)
@@ -996,7 +997,7 @@ export default function App() {
       {/* ====================================================================
           DYNAMIC STORE ANNOUNCEMENT & ADVERTISEMENT STRIP
           ==================================================================== */}
-      {announcementBanner?.enabled && (
+      {announcementBanner?.enabled && !isBannerDismissed && (
         <div
           className="vault-announcement-strip"
           style={{
@@ -1013,13 +1014,22 @@ export default function App() {
               </a>
             )}
           </div>
+          <button
+            type="button"
+            className="announcement-dismiss-btn"
+            onClick={() => setIsBannerDismissed(true)}
+            aria-label="Dismiss announcement"
+            title="Dismiss announcement"
+          >
+            ✕
+          </button>
         </div>
       )}
 
       {/* ====================================================================
           MINIMAL TRANSPARENT FIXED HEADER
           ==================================================================== */}
-      <header className={`site-header transparent-header ${announcementBanner?.enabled ? 'has-announcement' : ''}`}>
+      <header className={`site-header transparent-header ${announcementBanner?.enabled && !isBannerDismissed ? 'has-announcement' : ''}`}>
         <div className="header-row">
           {/* Logo with Secret Curator Trigger (Triple Click or Alt+Click) */}
           <a

@@ -4186,19 +4186,13 @@
 }
 
 @media (max-width: 768px) {
-  /* Top Announcement Strip */
+  /* Top Announcement Strip: Hidden on mobile so it never covers the view */
   .vault-announcement-strip {
-    padding: 6px 12px;
-    font-size: 10px;
-    line-height: 1.35;
-  }
-
-  .vault-announcement-strip .announcement-content {
-    gap: 6px;
+    display: none !important;
   }
 
   .site-header.has-announcement {
-    top: 34px;
+    top: 0 !important;
   }
 
   /* Header Branding */
@@ -4591,6 +4585,29 @@
 
 .vault-announcement-strip .announcement-link:hover {
   opacity: 0.8;
+}
+
+.announcement-dismiss-btn {
+  background: transparent;
+  border: none;
+  color: inherit;
+  font-size: 13px;
+  font-family: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 2px 6px;
+  margin-left: 12px;
+  opacity: 0.65;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+.announcement-dismiss-btn:hover {
+  opacity: 1;
+  transform: scale(1.2);
 }
 
 .site-header.has-announcement {
