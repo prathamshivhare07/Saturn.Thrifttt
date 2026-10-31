@@ -1,3 +1,4 @@
+import crypto from 'node:crypto'
 import https from 'node:https'
 import { createClient } from '@supabase/supabase-js'
 
@@ -6,6 +7,55 @@ if (!globalThis.__saturnOtpStore) {
   globalThis.__saturnOtpStore = new Map()
 }
 export const emailOtpStore = globalThis.__saturnOtpStore
+
+/**
+ * Secret key used for signing stateless OTP verification tokens.
+ * Stable across all Vercel serverless function containers.
+ */
+function getOtpSecret() {
+  return (
+    process.env.RESEND_API_KEY ||
+    process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    process.env.VITE_SUPABASE_ANON_KEY ||
+    'saturn-vault-archival-otp-salt-2026'
+  )
+}
+
+/**
+ * Generates a stateless HMAC-SHA256 signature token containing the expiration timestamp.
+ * The raw passcode is NEVER contained in the token; only a cryptographic hash.
+ */
+export function generateOtpToken(email, code, expiresAt) {
+  const secret = getOtpSecret()
+  const payload = `${email.toLowerCase().trim()}:${String(code).trim()}:${expiresAt}`
+  const signature = crypto.createHmac('sha256', secret).update(payload).digest('hex')
+  return `${expiresAt}.${signature}`
+}
+
+/**
+ * Verifies the stateless HMAC-SHA256 token against the submitted email and passcode.
+ */
+export function verifyOtpToken(email, code, token) {
+  if (!token || typeof token !== 'string' || !token.includes('.')) return false
+  const [expiresAtStr, signature] = token.split('.')
+  const expiresAt = Number(expiresAtStr)
+  if (isNaN(expiresAt) || Date.now() > expiresAt) {
+    return false // Passcode expired
+  }
+
+  const secret = getOtpSecret()
+  const payload = `${email.toLowerCase().trim()}:${String(code).trim()}:${expiresAt}`
+  const expectedSig = crypto.createHmac('sha256', secret).update(payload).digest('hex')
+
+  try {
+    const sigBuf = Buffer.from(signature, 'hex')
+    const expBuf = Buffer.from(expectedSig, 'hex')
+    if (sigBuf.length !== expBuf.length) return false
+    return crypto.timingSafeEqual(sigBuf, expBuf)
+  } catch {
+    return signature === expectedSig
+  }
+}
 
 /**
  * Supabase client for persisting OTP verifications across serverless instances
@@ -36,35 +86,50 @@ export async function saveOtp(email, code, expiresAt) {
 }
 
 /**
- * Verifies and consumes the OTP from either memory or Supabase store
+ * Verifies and consumes the OTP from stateless token, in-memory store, or Supabase
  */
-export async function verifyAndConsumeOtp(email, enteredCode) {
-  // 1. Check in-memory cache first (instant)
-  const stored = emailOtpStore.get(email)
-  if (stored && stored.code === enteredCode && stored.expiresAt > Date.now()) {
-    emailOtpStore.delete(email)
+export async function verifyAndConsumeOtp(email, enteredCode, token) {
+  const normalizedEmail = email.toLowerCase().trim()
+  const cleanCode = String(enteredCode).trim()
+
+  // 1. Primary: Stateless HMAC-SHA256 verification (100% resilient across any serverless container/cold start)
+  if (token && verifyOtpToken(normalizedEmail, cleanCode, token)) {
+    emailOtpStore.delete(normalizedEmail)
     try {
       const supabase = getSupabaseServerClient()
       if (supabase) {
-        await supabase.from('store_config').delete().eq('key', `otp:${email}`)
+        await supabase.from('store_config').delete().eq('key', `otp:${normalizedEmail}`)
       }
     } catch {}
     return true
   }
 
-  // 2. Check Supabase (handles cross-container requests on Vercel)
+  // 2. Secondary: Check in-memory cache (same container)
+  const stored = emailOtpStore.get(normalizedEmail)
+  if (stored && stored.code === cleanCode && stored.expiresAt > Date.now()) {
+    emailOtpStore.delete(normalizedEmail)
+    try {
+      const supabase = getSupabaseServerClient()
+      if (supabase) {
+        await supabase.from('store_config').delete().eq('key', `otp:${normalizedEmail}`)
+      }
+    } catch {}
+    return true
+  }
+
+  // 3. Fallback: Check Supabase (cross-container requests if store_config exists)
   try {
     const supabase = getSupabaseServerClient()
     if (supabase) {
       const { data, error } = await supabase
         .from('store_config')
         .select('value')
-        .eq('key', `otp:${email}`)
+        .eq('key', `otp:${normalizedEmail}`)
         .maybeSingle()
 
-      if (!error && data?.value && data.value.code === enteredCode && data.value.expiresAt > Date.now()) {
-        await supabase.from('store_config').delete().eq('key', `otp:${email}`)
-        emailOtpStore.delete(email)
+      if (!error && data?.value && data.value.code === cleanCode && data.value.expiresAt > Date.now()) {
+        await supabase.from('store_config').delete().eq('key', `otp:${normalizedEmail}`)
+        emailOtpStore.delete(normalizedEmail)
         return true
       }
     }

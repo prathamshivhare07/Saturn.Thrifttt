@@ -1,5 +1,5 @@
 import { Resend } from 'resend'
-import { setCorsHeaders, getRequestBody, sendTwilioRequest, parseEmailFrom, saveOtp } from './_utils.js'
+import { setCorsHeaders, getRequestBody, sendTwilioRequest, parseEmailFrom, saveOtp, generateOtpToken } from './_utils.js'
 
 export default async function handler(req, res) {
   setCorsHeaders(res)
@@ -30,6 +30,7 @@ export default async function handler(req, res) {
     const normalizedEmail = email.toLowerCase().trim()
     const code = String(Math.floor(1000 + Math.random() * 9000))
     const expiresAt = Date.now() + 10 * 60 * 1000
+    const token = generateOtpToken(normalizedEmail, code, expiresAt)
 
     // Persist code in memory and Supabase store_config
     await saveOtp(normalizedEmail, code, expiresAt)
@@ -80,6 +81,7 @@ export default async function handler(req, res) {
             provider: 'resend',
             email: normalizedEmail,
             id: data.id,
+            token,
             message: `Passcode sent to ${normalizedEmail} via Resend.`,
           }))
           return
@@ -112,6 +114,7 @@ export default async function handler(req, res) {
           provider: 'twilio_verify',
           email: normalizedEmail,
           sid: response.data.sid,
+          token,
           message: `Passcode sent to ${normalizedEmail} via Twilio Verify Email.`,
         }))
         return
@@ -151,6 +154,7 @@ export default async function handler(req, res) {
           simulated: false,
           provider: 'twilio_sendgrid',
           email: normalizedEmail,
+          token,
           message: `Passcode dispatched to ${normalizedEmail} via Twilio SendGrid.`,
         }))
         return
@@ -190,6 +194,7 @@ export default async function handler(req, res) {
       provider: 'dev_simulated',
       code: code,
       email: normalizedEmail,
+      token,
       message: `Passcode dispatched to ${normalizedEmail} via local dev simulator.`,
     }))
   } catch (err) {

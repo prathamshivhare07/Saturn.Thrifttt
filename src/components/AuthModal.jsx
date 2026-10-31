@@ -11,6 +11,7 @@ export default function AuthModal({
   const [authStep, setAuthStep] = useState('email')
   const [email, setEmail] = useState('')
   const [otpDigits, setOtpDigits] = useState(['', '', '', ''])
+  const [otpToken, setOtpToken] = useState('')
   const [generatedOtp, setGeneratedOtp] = useState('')
   const [isSimulated, setIsSimulated] = useState(true)
   const [resendTimer, setResendTimer] = useState(30)
@@ -28,6 +29,7 @@ export default function AuthModal({
       setSuccessMsg('')
       setAuthStep('email')
       setOtpDigits(['', '', '', ''])
+      setOtpToken('')
     }
   }, [isOpen])
 
@@ -107,6 +109,7 @@ export default function AuthModal({
 
       const data = await res.json()
       if (data.success) {
+        setOtpToken(data.token || '')
         // In local development, capture code for test auto-fill; in production, code is strictly empty
         setGeneratedOtp(import.meta.env.DEV ? (data.code || '') : '')
         setIsSimulated(Boolean(data.simulated))
@@ -200,6 +203,7 @@ export default function AuthModal({
         body: JSON.stringify({
           email: normalizedEmail,
           code: enteredOtp,
+          token: otpToken,
         }),
       })
 
@@ -296,10 +300,10 @@ export default function AuthModal({
                 <div className="auth-section-heading">
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <h3 className="auth-title">Passwordless Email Login</h3>
-                    <span className="twilio-badge">TWILIO EMAIL RAIL</span>
+                    <span className="twilio-badge">RESEND EMAIL RAIL</span>
                   </div>
                   <p className="auth-subtitle">
-                    Enter your email to receive a 4-digit Vault Passcode via Twilio. Zero passwords, universal inbox delivery.
+                    Enter your email to receive a 4-digit Vault Passcode via Resend. Zero passwords, universal inbox delivery.
                   </p>
                 </div>
 
@@ -349,8 +353,8 @@ export default function AuthModal({
                   </span>
                   <span>
                     {isSending
-                      ? 'DISPATCHING VIA TWILIO...'
-                      : 'GET 4-DIGIT TWILIO EMAIL OTP'}
+                      ? 'DISPATCHING PASSCODE...'
+                      : 'GET 4-DIGIT ACCESS PASSCODE'}
                   </span>
                 </button>
 
@@ -381,7 +385,7 @@ export default function AuthModal({
                     <span className="material-symbols-outlined" style={{ fontSize: 15, color: '#16a34a' }}>
                       verified
                     </span>
-                    <span>Powered by Twilio Verify & SendGrid</span>
+                    <span>Powered by Resend Email Rail</span>
                   </div>
                   <div className="perk-item">
                     <span className="material-symbols-outlined" style={{ fontSize: 15, color: 'var(--tertiary)' }}>
@@ -413,7 +417,7 @@ export default function AuthModal({
                     </button>
                   </div>
                   <p className="auth-subtitle">
-                    Enter the 4-digit code dispatched via <strong>Twilio Email Rail</strong> to{' '}
+                    Enter the 4-digit code dispatched via <strong>Resend Email Rail</strong> to{' '}
                     <strong style={{ color: 'var(--on-surface)' }}>{email}</strong>
                   </p>
                 </div>
@@ -452,7 +456,7 @@ export default function AuthModal({
                 <div className="otp-resend-row">
                   {resendTimer > 0 ? (
                     <span className="timer-countdown">
-                      Resend via Twilio in <strong style={{ color: 'var(--primary)' }}>{resendTimer}s</strong>
+                      Resend passcode in <strong style={{ color: 'var(--primary)' }}>{resendTimer}s</strong>
                     </span>
                   ) : (
                     <button

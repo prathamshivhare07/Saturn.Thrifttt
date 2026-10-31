@@ -1,10 +1,44 @@
-// Twilio Email OTP Verification Vite Middleware
-// Supports Twilio Verify (Channel: email) & Twilio SendGrid Email API
+// Saturn Vault Resend & Email OTP Verification Vite Middleware
+import crypto from 'node:crypto'
 import https from 'node:https'
 import { Resend } from 'resend'
 
 // In-memory token store for local dev fallback & token tracking
 const emailOtpStore = new Map()
+
+function getOtpSecret() {
+  return (
+    process.env.RESEND_API_KEY ||
+    process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    process.env.VITE_SUPABASE_ANON_KEY ||
+    'saturn-vault-archival-otp-salt-2026'
+  )
+}
+
+function generateOtpToken(email, code, expiresAt) {
+  const secret = getOtpSecret()
+  const payload = `${email.toLowerCase().trim()}:${String(code).trim()}:${expiresAt}`
+  const signature = crypto.createHmac('sha256', secret).update(payload).digest('hex')
+  return `${expiresAt}.${signature}`
+}
+
+function verifyOtpToken(email, code, token) {
+  if (!token || typeof token !== 'string' || !token.includes('.')) return false
+  const [expiresAtStr, signature] = token.split('.')
+  const expiresAt = Number(expiresAtStr)
+  if (isNaN(expiresAt) || Date.now() > expiresAt) return false
+  const secret = getOtpSecret()
+  const payload = `${email.toLowerCase().trim()}:${String(code).trim()}:${expiresAt}`
+  const expectedSig = crypto.createHmac('sha256', secret).update(payload).digest('hex')
+  try {
+    const a = Buffer.from(signature, 'hex')
+    const b = Buffer.from(expectedSig, 'hex')
+    if (a.length !== b.length) return false
+    return crypto.timingSafeEqual(a, b)
+  } catch {
+    return signature === expectedSig
+  }
+}
 
 // Helper: HTTP request for Twilio endpoints
 function sendTwilioRequest(url, authHeader, bodyParams, isJson = false) {
@@ -79,9 +113,12 @@ export function emailOtpPlugin() {
 
               const normalizedEmail = email.toLowerCase().trim()
               const code = String(Math.floor(1000 + Math.random() * 9000))
+              const expiresAt = Date.now() + 10 * 60 * 1000
+              const token = generateOtpToken(normalizedEmail, code, expiresAt)
+
               emailOtpStore.set(normalizedEmail, {
                 code,
-                expiresAt: Date.now() + 10 * 60 * 1000,
+                expiresAt,
               })
 
               const resendApiKey = process.env.RESEND_API_KEY
@@ -130,6 +167,7 @@ export function emailOtpPlugin() {
                       provider: 'resend',
                       email: normalizedEmail,
                       id: data.id,
+                      token,
                       message: `Passcode sent to ${normalizedEmail} via Resend.`,
                     }))
                     return
@@ -162,6 +200,7 @@ export function emailOtpPlugin() {
                     provider: 'twilio_verify',
                     email: normalizedEmail,
                     sid: response.data.sid,
+                    token,
                     message: `Passcode sent to ${normalizedEmail} via Twilio Verify Email.`,
                   }))
                   return
@@ -201,6 +240,7 @@ export function emailOtpPlugin() {
                     simulated: false,
                     provider: 'twilio_sendgrid',
                     email: normalizedEmail,
+                    token,
                     message: `Passcode dispatched to ${normalizedEmail} via Twilio SendGrid.`,
                   }))
                   return
@@ -241,6 +281,7 @@ export function emailOtpPlugin() {
                 provider: 'dev_simulated',
                 code: code,
                 email: normalizedEmail,
+                token,
                 message: `Passcode dispatched to ${normalizedEmail} via local dev simulator.`,
               }))
             } catch (err) {
@@ -259,7 +300,7 @@ export function emailOtpPlugin() {
           req.on('end', async () => {
             res.setHeader('Content-Type', 'application/json')
             try {
-              const { email, code } = JSON.parse(body || '{}')
+              const { email, code, token } = JSON.parse(body || '{}')
               if (!email || !code) {
                 res.statusCode = 400
                 res.end(JSON.stringify({ success: false, error: 'Email and verification code are required.' }))
@@ -267,18 +308,27 @@ export function emailOtpPlugin() {
               }
 
               const normalizedEmail = email.toLowerCase().trim()
+              const cleanCode = String(code).trim()
               const accountSid = process.env.TWILIO_ACCOUNT_SID
               const authToken = process.env.TWILIO_AUTH_TOKEN
               const verifySid = process.env.TWILIO_VERIFY_SERVICE_SID
 
-              // If Twilio Verify service is active, verify via Twilio API
+              // 1. Primary: Verify stateless HMAC token
+              if (token && verifyOtpToken(normalizedEmail, cleanCode, token)) {
+                emailOtpStore.delete(normalizedEmail)
+                res.statusCode = 200
+                res.end(JSON.stringify({ success: true, verified: true }))
+                return
+              }
+
+              // 2. Secondary: If Twilio Verify service is active, verify via Twilio API
               if (accountSid && authToken && verifySid && !accountSid.includes('your_account_sid')) {
                 const authHeader = Buffer.from(`${accountSid}:${authToken}`).toString('base64')
                 const twilioUrl = `https://verify.twilio.com/v2/Services/${verifySid}/VerificationCheck`
 
                 const response = await sendTwilioRequest(twilioUrl, `Basic ${authHeader}`, {
                   To: normalizedEmail,
-                  Code: String(code).trim(),
+                  Code: cleanCode,
                 })
 
                 if (response.ok && response.data.status === 'approved') {
@@ -288,9 +338,9 @@ export function emailOtpPlugin() {
                 }
               }
 
-              // Check in-memory store
+              // 3. Fallback: Check in-memory store
               const stored = emailOtpStore.get(normalizedEmail)
-              if (stored && stored.code === String(code).trim() && stored.expiresAt > Date.now()) {
+              if (stored && stored.code === cleanCode && stored.expiresAt > Date.now()) {
                 emailOtpStore.delete(normalizedEmail)
                 res.statusCode = 200
                 res.end(JSON.stringify({ success: true, verified: true }))

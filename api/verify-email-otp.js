@@ -19,7 +19,7 @@ export default async function handler(req, res) {
   res.setHeader('Content-Type', 'application/json')
 
   try {
-    const { email, code } = await getRequestBody(req)
+    const { email, code, token } = await getRequestBody(req)
     if (!email || !code) {
       res.statusCode = 400
       res.end(JSON.stringify({ success: false, error: 'Email and verification code are required.' }))
@@ -33,9 +33,9 @@ export default async function handler(req, res) {
     const verifySid = process.env.TWILIO_VERIFY_SERVICE_SID
 
     // ============================================================
-    // Path 1: Resend / Supabase Store Verification (Primary)
+    // Path 1: Resend / Stateless HMAC Token & Store Verification (Primary)
     // ============================================================
-    const isValid = await verifyAndConsumeOtp(normalizedEmail, enteredCode)
+    const isValid = await verifyAndConsumeOtp(normalizedEmail, enteredCode, token)
     if (isValid) {
       res.statusCode = 200
       res.end(JSON.stringify({ success: true, verified: true }))
