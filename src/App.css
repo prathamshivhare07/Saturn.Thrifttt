@@ -4157,12 +4157,17 @@
    ========================================================================== */
 @media (max-width: 860px) {
   .site-header {
-    padding: 10px 16px;
+    padding: 10px 14px;
+    background: var(--surface) !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    border-bottom: 1.5px solid var(--outline-variant);
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
   }
 
   .header-row {
     flex-wrap: wrap;
-    gap: 10px;
+    gap: 8px;
     justify-content: space-between;
   }
 
@@ -4171,7 +4176,7 @@
     width: 100%;
     overflow-x: auto;
     padding: 6px 0 2px 0;
-    gap: 14px;
+    gap: 12px;
     -webkit-overflow-scrolling: touch;
     border-top: 1px solid rgba(29, 27, 24, 0.08);
   }
@@ -4253,7 +4258,7 @@
     width: 100% !important;
     overflow: visible !important;
     display: block !important;
-    padding-top: 64px;
+    padding-top: 142px !important; /* Clears fixed 3-row mobile header with clean margin */
   }
 
   .mobile-lite-viewport .hero-canvas-wrap {
@@ -4271,7 +4276,7 @@
     position: relative;
     display: flex;
     flex-direction: column;
-    padding: 16px 14px 0 14px;
+    padding: 12px 14px 0 14px;
     margin: 0;
     gap: 16px;
     pointer-events: auto;
@@ -4281,6 +4286,8 @@
   }
 
   .mobile-lite-stage .hero-content-overlay {
+    flex: 0 0 auto !important; /* Eliminates the 500px flex-basis blank gap */
+    width: 100%;
     max-width: 100%;
     padding: 0;
     transform: none !important;

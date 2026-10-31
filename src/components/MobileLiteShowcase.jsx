@@ -32,7 +32,7 @@ export function MobileLiteShowcase({
             className={`mobile-cat-pill ${activeCategory === cat.id ? 'active' : ''}`}
             onClick={() => onSelectCategory(cat.id)}
           >
-            <span>{cat.title}</span>
+            <span>{cat.shortName || cat.name}</span>
           </button>
         ))}
       </div>
@@ -163,3 +163,4 @@ export function MobileServicesBar({ whatsappNumber = '+919329993116' }) {
     </section>
   )
 }
+
