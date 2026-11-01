@@ -721,7 +721,7 @@ export default function AdminDashboardModal({
               <form onSubmit={handleVerifyPasscode} style={{ width: '100%', maxWidth: 300 }}>
                 <input
                   type="password"
-                  placeholder="Enter Curator Passcode (9410)"
+                  placeholder="Enter Master Curator Passcode"
                   value={passcode}
                   onChange={(e) => setPasscode(e.target.value)}
                   className="admin-passcode-input"
@@ -734,10 +734,6 @@ export default function AdminDashboardModal({
                   <span className="material-symbols-outlined" style={{ fontSize: 16 }}>key</span>
                 </button>
               </form>
-
-              <div style={{ marginTop: 16, fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--outline)' }}>
-                DEFAULT PASSCODE: <strong>9410</strong>
-              </div>
             </div>
           </div>
         ) : (
@@ -2143,7 +2139,7 @@ export default function AdminDashboardModal({
                         type="password"
                         value={localSettings.adminPasscode || '9410'}
                         onChange={(e) => setLocalSettings({ ...localSettings, adminPasscode: e.target.value })}
-                        placeholder="e.g. 9410 or custom private pin"
+                        placeholder="Enter private master PIN"
                         required
                       />
                     </div>
